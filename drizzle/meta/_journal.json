@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790806975380,
+      "tag": "0000_habilitar_postgis",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790806987525,
+      "tag": "0001_esquema_inicial",
+      "breakpoints": true
+    }
+  ]
+}
