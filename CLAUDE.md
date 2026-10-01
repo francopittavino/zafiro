@@ -17,10 +17,12 @@ Next.js 16 (App Router, `src/`) + TypeScript · Tailwind v4 + shadcn/ui · Drizz
 ## Comandos
 
 - `npm run dev`: servidor local.
+- `npm run demo`: servidor local en **modo demo** (sin base ni PIN, datos de `datos-demo/zafiro.json`). Los datos se generan con `python scripts/importar-planilla.py "Anterior excel zafiro.xlsm"` (no se versionan).
 - `npm run build` / `npm run lint` / `npx tsc --noEmit`.
 - `npm run db:generate`: genera la migración a partir de `src/db/schema.ts`.
 - `npm run db:migrate`: aplica las migraciones (usa `DATABASE_URL_MIGRACIONES` de `.env.local`).
 - `npm run db:studio`: explorador de la base de datos.
+- `npm run db:cargar`: carga en la base (vacía) los datos de `datos-demo/zafiro.json`.
 
 ## Acceso
 
@@ -32,3 +34,4 @@ Next.js 16 (App Router, `src/`) + TypeScript · Tailwind v4 + shadcn/ui · Drizz
 - Esquema en `src/db/schema.ts`; conexión en `src/db/index.ts` (`casing: "snake_case"`, los campos en TS son camelCase).
 - Contornos de lotes: tipo custom `multiPoligono` (`src/db/postgis.ts`). Se escribe con GeoJSON y se lee con `ST_AsGeoJSON(...)`.
 - `numeric` se devuelve como string; guardar el precio del insumo al momento de aplicarlo (snapshot).
+- Transacciones: **siempre `dbTx.transaction(...)`**, nunca `db.transaction` (el pooler de Supabase no soporta pipelining; ver `src/db/index.ts`).

@@ -1,0 +1,1 @@
+ALTER TABLE "labores" DROP COLUMN "tipo";

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +12,9 @@ export function PantallaPin() {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-10">
       <form action={accion} className="grid w-full max-w-xs gap-4 text-center">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Zafiro</h1>
+        <div className="flex flex-col items-center gap-3">
+          <Image src="/marca/logo.png" alt="Zafiro Agronomía" width={160} height={158} priority />
+          <h1 className="sr-only">Zafiro</h1>
           <p className="text-muted-foreground text-sm">Ingresá el PIN para continuar</p>
         </div>
 

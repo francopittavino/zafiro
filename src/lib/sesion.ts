@@ -7,6 +7,7 @@ import { and, eq, gt, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { sesiones } from "@/db/schema";
 import { COOKIE_SESION } from "./sesion-cookie";
+import { modoDemo } from "./modo-demo";
 
 const DURACION_SESION_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
 
@@ -32,6 +33,8 @@ export async function crearSesion() {
 
 /** Devuelve la sesión vigente o null. Memoizada por request. */
 export const obtenerSesion = cache(async () => {
+  if (modoDemo()) return { id: "demo", expiraEn: new Date(Date.now() + DURACION_SESION_MS) };
+
   const token = (await cookies()).get(COOKIE_SESION)?.value;
   if (!token) return null;
 
@@ -56,6 +59,7 @@ export async function verificarSesion() {
 
 /** Borra la sesión actual (base y cookie). */
 export async function cerrarSesionActual() {
+  if (modoDemo()) return;
   const almacen = await cookies();
   const token = almacen.get(COOKIE_SESION)?.value;
   if (token) await db.delete(sesiones).where(eq(sesiones.id, sha256(token)));

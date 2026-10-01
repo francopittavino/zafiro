@@ -6,6 +6,10 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-zafiro: var(--zafiro);
+  --color-zafiro-suave: var(--zafiro-suave);
+  --color-sol: var(--sol);
+  --color-positivo: var(--positivo);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
@@ -49,38 +53,43 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Marca Zafiro (del logo): azul marino #252A61, azul zafiro #0B63AE, amarillo sol #FFE600. */
+  --background: #f4f5f8;
+  --foreground: #1a1d3a;
+  --card: #ffffff;
+  --card-foreground: #1a1d3a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1d3a;
+  --primary: #252a61;
+  --primary-foreground: #ffffff;
+  --secondary: #e8ecf5;
+  --secondary-foreground: #252a61;
+  --muted: #eef0f5;
+  --muted-foreground: #565d75;
+  --accent: #e3edf8;
+  --accent-foreground: #0b4f8c;
+  --destructive: #b42318;
+  --border: #dde1ea;
+  --input: #c9cedb;
+  --ring: #0b63ae;
+  --zafiro: #0b63ae;
+  --zafiro-suave: #e3edf8;
+  --sol: #ffe600;
+  --positivo: #22703a;
+  --chart-1: #252a61;
+  --chart-2: #0b63ae;
+  --chart-3: #6fa3d8;
+  --chart-4: #b9cfe8;
+  --chart-5: #ffe600;
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1d3a;
+  --sidebar-primary: #252a61;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3edf8;
+  --sidebar-accent-foreground: #252a61;
+  --sidebar-border: #dde1ea;
+  --sidebar-ring: #0b63ae;
 }
 
 .dark {
@@ -115,6 +124,19 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Al imprimir (o guardar como PDF) solo va el contenido: sin menús ni botones. */
+@media print {
+  aside,
+  nav,
+  .no-imprimir,
+  button {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
 }
 
 @layer base {

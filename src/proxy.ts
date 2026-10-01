@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_SESION } from "@/lib/sesion-cookie";
+import { modoDemo } from "@/lib/modo-demo";
 
 /**
  * Chequeo optimista: sin cookie de sesión, cualquier ruta que no sea la
@@ -7,6 +8,7 @@ import { COOKIE_SESION } from "@/lib/sesion-cookie";
  * base la hace `verificarSesion()` en cada página y Server Action.
  */
 export function proxy(request: NextRequest) {
+  if (modoDemo()) return NextResponse.next();
   const tieneCookie = request.cookies.has(COOKIE_SESION);
 
   if (!tieneCookie && request.nextUrl.pathname !== "/") {

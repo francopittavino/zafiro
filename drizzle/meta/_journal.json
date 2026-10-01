@@ -22,6 +22,27 @@
       "when": 1790823742340,
       "tag": "0002_acceso_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790864333581,
+      "tag": "0003_ajustes_excel",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790864340267,
+      "tag": "0004_labores_tipo_catalogo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790872952163,
+      "tag": "0005_fotos",
+      "breakpoints": true
     }
   ]
 }

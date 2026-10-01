@@ -6,6 +6,7 @@
  * - Montos y dosis en `numeric` (Drizzle los devuelve como string, sin pérdida de precisión).
  * - Cada insumo aplicado guarda el precio del momento (snapshot) para que los
  *   costos históricos no cambien cuando se actualiza la lista de precios.
+ * - Ajustado con el Excel anterior del cliente (docs/ANALISIS_EXCEL_ANTERIOR.md).
  */
 import {
   pgTable,
@@ -18,7 +19,9 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { multiPoligono } from "./postgis";
 
 const id = () => integer().primaryKey().generatedAlwaysAsIdentity();
@@ -28,7 +31,16 @@ const creadoEn = () => timestamp({ withTimezone: true }).notNull().defaultNow();
 
 export const monedaEnum = pgEnum("moneda", ["ARS", "USD"]);
 
-export const unidadEnum = pgEnum("unidad", ["L", "kg", "u"]);
+/** Unidad en la que se compra, se cotiza y se dosifica el producto (la dosis es "unidad/ha"). */
+export const unidadEnum = pgEnum("unidad", [
+  "L",
+  "kg",
+  "u",
+  "tn",
+  "bolsa",
+  "pack",
+  "dosis",
+]);
 
 export const categoriaProductoEnum = pgEnum("categoria_producto", [
   "herbicida",
@@ -36,10 +48,15 @@ export const categoriaProductoEnum = pgEnum("categoria_producto", [
   "fungicida",
   "fertilizante",
   "semilla",
+  /** Adherentes, aceites, correctores (en el Excel: "ADHERENTE"). */
   "coadyuvante",
   "otro",
+  "fertilizante_foliar",
+  "inoculante",
+  "curasemilla",
 ]);
 
+/** Agrupa los tipos de labor; "cosecha" se separa en el margen bruto. */
 export const tipoLaborEnum = pgEnum("tipo_labor", [
   "siembra",
   "pulverizacion",
@@ -47,6 +64,12 @@ export const tipoLaborEnum = pgEnum("tipo_labor", [
   "cosecha",
   "laboreo",
   "otra",
+]);
+
+/** Cómo se cotiza una labor: en litros de gasoil por ha (como en el Excel) o en USD/ha fijos. */
+export const cotizacionLaborEnum = pgEnum("cotizacion_labor", [
+  "litros_gasoil",
+  "usd_fijo",
 ]);
 
 export const estadoRecetaEnum = pgEnum("estado_receta", [
@@ -81,7 +104,7 @@ export const intentosAcceso = pgTable(
 
 export const campos = pgTable("campos", {
   id: id(),
-  nombre: text().notNull(),
+  nombre: text().notNull().unique(),
   localidad: text(),
   provincia: text(),
   notas: text(),
@@ -96,7 +119,9 @@ export const lotes = pgTable(
       .notNull()
       .references(() => campos.id),
     nombre: text().notNull(),
-    superficieHa: numeric({ precision: 10, scale: 2 }),
+    /** Código corto opcional con el que el cliente identifica el lote (ej. "T4", "SM 2"). */
+    codigo: text().unique(),
+    superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
     /** Contorno importado de Google Earth (KML/KMZ). */
     contorno: multiPoligono(),
     activo: boolean().notNull().default(true),
@@ -132,7 +157,20 @@ export const ciclos = pgTable(
     variedad: text(),
     fechaSiembra: date(),
     superficieHa: numeric({ precision: 10, scale: 2 }),
+    // Cosecha y comercialización (bloque derecho del REGISTRO del Excel).
+    fechaCosecha: date(),
     rindeKgHa: numeric({ precision: 10, scale: 2 }),
+    /** Precio pizarra en USD/tn. */
+    precioPizarra: numeric({ precision: 14, scale: 4 }),
+    /** Arrendamiento como fracción de la producción (0,25 = 25%). A confirmar con el cliente. */
+    arrendamientoPorcentaje: numeric({ precision: 6, scale: 4 }),
+    /** Arrendamiento como kg/ha fijos (alternativa al porcentaje). */
+    arrendamientoKgHa: numeric({ precision: 10, scale: 2 }),
+    /** Gastos de comercialización como fracción del ingreso (en el Excel, 0,05). */
+    gastosComercializacionPorcentaje: numeric({ precision: 6, scale: 4 }),
+    /** Flete en USD por tn neta. */
+    fleteUsdTn: numeric({ precision: 14, scale: 4 }),
+    bonificacionPorcentaje: numeric({ precision: 6, scale: 4 }),
     notas: text(),
     creadoEn: creadoEn(),
   },
@@ -157,11 +195,37 @@ export const contratistas = pgTable("contratistas", {
   creadoEn: creadoEn(),
 });
 
+/** Quién aporta/paga el insumo o la labor (en el Excel: "APORTE"). A confirmar el significado. */
+export const aportes = pgTable("aportes", {
+  id: id(),
+  nombre: text().notNull().unique(),
+  activo: boolean().notNull().default(true),
+  creadoEn: creadoEn(),
+});
+
+// ─── Parámetros ─────────────────────────────────────────────────────────────
+
+/** Tipo de cambio y precio del gasoil por fecha: se usan para cotizar labores en USD. */
+export const cotizaciones = pgTable("cotizaciones", {
+  fecha: date().primaryKey(),
+  /** ARS por 1 USD. */
+  tipoCambio: numeric({ precision: 14, scale: 4 }).notNull(),
+  /** ARS por litro de gasoil. */
+  precioGasoil: numeric({ precision: 14, scale: 4 }).notNull(),
+  creadoEn: creadoEn(),
+});
+
+/** Valores por defecto editables (ej. "gastos_comercializacion", "flete_usd_tn"). */
+export const configuracion = pgTable("configuracion", {
+  clave: text().primaryKey(),
+  valor: text().notNull(),
+});
+
 // ─── Productos y precios ────────────────────────────────────────────────────
 
 export const productos = pgTable("productos", {
   id: id(),
-  nombreComercial: text().notNull(),
+  nombreComercial: text().notNull().unique(),
   principioActivo: text(),
   concentracion: text(),
   formulacion: text(),
@@ -183,13 +247,29 @@ export const preciosProducto = pgTable(
       .notNull()
       .references(() => productos.id),
     proveedorId: integer().references(() => proveedores.id),
-    moneda: monedaEnum().notNull(),
+    moneda: monedaEnum().notNull().default("USD"),
     precioUnitario: numeric({ precision: 14, scale: 4 }).notNull(),
     fecha: date().notNull(),
     creadoEn: creadoEn(),
   },
   (t) => [index().on(t.productoId, t.fecha)],
 );
+
+// ─── Catálogo de labores ────────────────────────────────────────────────────
+
+/** Tipos de labor del cliente con su tarifa (en el Excel: hoja "LABORES"). */
+export const tiposLabor = pgTable("tipos_labor", {
+  id: id(),
+  nombre: text().notNull().unique(),
+  categoria: tipoLaborEnum().notNull(),
+  cotizacion: cotizacionLaborEnum().notNull(),
+  /** Si se cotiza en gasoil: litros por ha. */
+  litrosGasoilHa: numeric({ precision: 10, scale: 2 }),
+  /** Si se cotiza fijo: USD por ha. */
+  costoUsdHa: numeric({ precision: 14, scale: 4 }),
+  activo: boolean().notNull().default(true),
+  creadoEn: creadoEn(),
+});
 
 // ─── Recetas ────────────────────────────────────────────────────────────────
 
@@ -235,10 +315,14 @@ export const labores = pgTable(
       .notNull()
       .references(() => ciclos.id),
     recetaId: integer().references(() => recetas.id),
-    tipo: tipoLaborEnum().notNull(),
+    tipoLaborId: integer()
+      .notNull()
+      .references(() => tiposLabor.id),
     fecha: date().notNull(),
     superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
     contratistaId: integer().references(() => contratistas.id),
+    aporteId: integer().references(() => aportes.id),
+    /** Snapshot del costo de la labor por ha (sale de la tarifa, editable). */
     costoLaborPorHa: numeric({ precision: 14, scale: 4 }),
     monedaLabor: monedaEnum(),
     /** Tipo de cambio ARS/USD usado para esta labor (a definir la fuente con el cliente). */
@@ -262,8 +346,39 @@ export const laborInsumos = pgTable(
     dosisPorHa: numeric({ precision: 12, scale: 4 }).notNull(),
     cantidadTotal: numeric({ precision: 14, scale: 4 }).notNull(),
     /** Snapshot del precio al momento de la aplicación. */
-    precioUnitario: numeric({ precision: 14, scale: 4 }),
-    moneda: monedaEnum(),
+    precioUnitario: numeric({ precision: 14, scale: 4 }).notNull(),
+    moneda: monedaEnum().notNull().default("USD"),
   },
   (t) => [index().on(t.laborId)],
+);
+
+// ─── Fotos ──────────────────────────────────────────────────────────────────
+
+/**
+ * Fotos de un campo, un lote o una labor. El archivo está en Supabase Storage
+ * (bucket privado "fotos", ver src/lib/almacenamiento.ts); acá queda la ruta y los datos.
+ */
+export const fotos = pgTable(
+  "fotos",
+  {
+    id: id(),
+    campoId: integer().references(() => campos.id, { onDelete: "cascade" }),
+    loteId: integer().references(() => lotes.id, { onDelete: "cascade" }),
+    laborId: integer().references(() => labores.id, { onDelete: "cascade" }),
+    /** Ruta dentro del bucket, ej. "lotes/12/1727790000000-ab12.jpg". */
+    ruta: text().notNull().unique(),
+    /** Fecha en que se sacó (por defecto, la de carga). */
+    fecha: date().notNull(),
+    nota: text(),
+    ancho: integer(),
+    alto: integer(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    index().on(t.campoId),
+    index().on(t.loteId),
+    index().on(t.laborId),
+    // Cada foto pertenece a una sola cosa: campo, lote o labor.
+    check("fotos_un_destino", sql`num_nonnulls(${t.campoId}, ${t.loteId}, ${t.laborId}) = 1`),
+  ],
 );
