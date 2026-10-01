@@ -15,6 +15,13 @@
       "when": 1790806987525,
       "tag": "0001_esquema_inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790823742340,
+      "tag": "0002_acceso_pin",
+      "breakpoints": true
     }
   ]
 }

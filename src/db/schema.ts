@@ -56,6 +56,27 @@ export const estadoRecetaEnum = pgEnum("estado_receta", [
   "anulada",
 ]);
 
+// ─── Acceso (PIN único) ─────────────────────────────────────────────────────
+
+/** Sesiones abiertas con el PIN. `id` es el SHA-256 del token que va en la cookie. */
+export const sesiones = pgTable("sesiones", {
+  id: text().primaryKey(),
+  creadoEn: creadoEn(),
+  expiraEn: timestamp({ withTimezone: true }).notNull(),
+});
+
+/** Intentos de ingreso, para bloquear por IP ante muchos PIN incorrectos. */
+export const intentosAcceso = pgTable(
+  "intentos_acceso",
+  {
+    id: id(),
+    ip: text().notNull(),
+    exitoso: boolean().notNull(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [index().on(t.ip, t.creadoEn)],
+);
+
 // ─── Estructura: campos, lotes, campañas ────────────────────────────────────
 
 export const campos = pgTable("campos", {

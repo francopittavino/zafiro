@@ -22,6 +22,11 @@ Next.js 16 (App Router, `src/`) + TypeScript · Tailwind v4 + shadcn/ui · Drizz
 - `npm run db:migrate`: aplica las migraciones (usa `DATABASE_URL_MIGRACIONES` de `.env.local`).
 - `npm run db:studio`: explorador de la base de datos.
 
+## Acceso
+
+- Un solo usuario con PIN (`ACCESO_PIN`). Sin sesión, `/` muestra `PantallaPin`; el resto de las rutas redirige a `/` (`src/proxy.ts`).
+- **Toda página protegida y toda Server Action nueva debe llamar a `verificarSesion()`** (`src/lib/sesion.ts`): el proxy solo mira si existe la cookie.
+
 ## Base de datos
 
 - Esquema en `src/db/schema.ts`; conexión en `src/db/index.ts` (`casing: "snake_case"`, los campos en TS son camelCase).

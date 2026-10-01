@@ -62,6 +62,13 @@ Principios ya acordados como recomendación:
 | 2026-09-30 | Entidad **ciclo** = cultivo en un lote en una campaña (permite fina y gruesa en el mismo año) | Modelo agronómico |
 | 2026-09-30 | Dos variables de conexión: `DATABASE_URL` (pooler de transacción, 6543) y `DATABASE_URL_MIGRACIONES` (5432) | Requisito de Supabase con Vercel serverless |
 | 2026-09-30 | Workflow: `/open-session` (pull) y `/close-session` (actualiza este doc, commit y push) | Continuidad entre sesiones |
+| 2026-09-30 | **Vercel**: proyecto `zafiro` (cuenta Hobby), URL https://zafiro-five.vercel.app, deploy automático desde `main` | Conectado vía Chrome |
+| 2026-09-30 | **Supabase**: proyecto `zafiro` (ref `joojvijwxzytmmxurebz`), región São Paulo `sa-east-1`, org `francopittavino` (Free); pooler `aws-0-sa-east-1.pooler.supabase.com` | Región más cercana a Argentina |
+| 2026-09-30 | Supabase con **Data API desactivada** y **RLS automático activado** | La app accede solo vía Drizzle/Postgres; no exponer tablas por REST |
+| 2026-10-01 | **Acceso con PIN único** en la página principal (sin email, sin /login ni /admin). PIN en la env `ACCESO_PIN` | Decisión del dev: un solo usuario. **No** se usa Supabase Auth |
+| 2026-10-01 | Sesión en tabla `sesiones` (se guarda el SHA-256 del token; cookie httpOnly `zafiro_sesion`, 30 días) | Revocable desde la base; sin secretos extra |
+| 2026-10-01 | Bloqueo por IP: 5 PIN incorrectos en 15 min → bloqueo 15 min (tabla `intentos_acceso`) | El PIN es corto: mitigar fuerza bruta |
+| 2026-10-01 | Patrón de auth (Next 16): `proxy.ts` solo chequea que exista la cookie; `verificarSesion()` valida contra la base en cada página/Server Action | Recomendación de la doc de Next |
 
 ## 5. Preguntas abiertas
 
@@ -74,7 +81,7 @@ Principios ya acordados como recomendación:
 - Prioridades para el MVP y plazos.
 
 ### Técnicas (pendientes)
-- Autenticación: Supabase Auth (sugerido, falta implementar; requiere crear el proyecto de Supabase).
+- Cambiar el PIN por uno más largo antes de cargar datos reales (hoy es el que eligió el dev; se cambia en Vercel sin tocar código).
 - Mapas: el dev **no tiene experiencia** → sugerencia: Leaflet (react-leaflet) + `@tmcw/togeojson` para importar KML/KMZ. Dejar mapas para una fase posterior al MVP si no es prioridad del cliente.
 - Generación de PDF de recetas/informes (sugerencia: `@react-pdf/renderer`).
 
@@ -93,13 +100,19 @@ Principios ya acordados como recomendación:
 ### 2026-09-30
 - Relevamiento inicial: cuestionario para el cliente (`docs/Preguntas_Cliente_Relevamiento.pdf`).
 - Definición del stack y despliegue (ver tabla de decisiones).
-- Esqueleto del proyecto: Next.js 16 + Tailwind + shadcn/ui + Drizzle; esquema preliminar de 12 tablas y migraciones generadas (**todavía no aplicadas**: no hay proyecto de Supabase creado).
+- Esqueleto del proyecto: Next.js 16 + Tailwind + shadcn/ui + Drizzle; esquema preliminar de 12 tablas.
+- Supabase creado y migraciones **aplicadas** (PostGIS 3.3 + 12 tablas con RLS; verificado cálculo de ha con un polígono de prueba).
+- Repo conectado a Vercel (https://zafiro-five.vercel.app).
 - Home provisoria con los módulos planificados.
 - Skills `open-session` y `close-session`.
 
+### 2026-10-01
+- Acceso con PIN en la página principal (tablas `sesiones` e `intentos_acceso`, migración `0002_acceso_pin`). Probado en local: PIN incorrecto, correcto, sesión persistente, salir y bloqueo por intentos.
+- Se probó Supabase Auth con email y se descartó por pedido del dev (un solo usuario, solo PIN).
+
 **Próximos pasos:**
 1. Reunión con el cliente usando el PDF; volcar las respuestas en este documento y ajustar el esquema.
-2. Crear el proyecto en Supabase (plan gratis), completar `.env.local` y correr `npm run db:migrate`.
-3. Conectar el repo a Vercel.
-4. Login del administrador con Supabase Auth.
+2. ~~Supabase + migraciones~~ ✔ · ~~Vercel~~ ✔ · ~~`DATABASE_URL` en Vercel (Production + Preview) + redeploy~~ ✔
+3. Ojo: el plan Free de Supabase permite 2 proyectos activos (hoy: Los Gladiolos + zafiro; voko-accesorios pausado).
+4. ~~Acceso del administrador~~ ✔ (PIN). Falta: cargar `ACCESO_PIN` en Vercel.
 5. Primer módulo del MVP (según las prioridades del cliente; candidato: productos y lista de precios, o campos y lotes).
