@@ -109,10 +109,13 @@ Principios ya acordados como recomendación:
 ### 2026-10-01
 - Acceso con PIN en la página principal (tablas `sesiones` e `intentos_acceso`, migración `0002_acceso_pin`). Probado en local: PIN incorrecto, correcto, sesión persistente, salir y bloqueo por intentos.
 - Se probó Supabase Auth con email y se descartó por pedido del dev (un solo usuario, solo PIN).
+- Deploy en producción verificado: pantalla de PIN en https://zafiro-five.vercel.app y el dev ingresó con su PIN.
+
+**Estado al cierre:** infraestructura y acceso listos. **Se retoma después de la reunión con el cliente** (usar `docs/Preguntas_Cliente_Relevamiento.pdf`): volcar respuestas acá, ajustar el esquema y definir el primer módulo del MVP.
 
 **Próximos pasos:**
 1. Reunión con el cliente usando el PDF; volcar las respuestas en este documento y ajustar el esquema.
 2. ~~Supabase + migraciones~~ ✔ · ~~Vercel~~ ✔ · ~~`DATABASE_URL` en Vercel (Production + Preview) + redeploy~~ ✔
-3. Ojo: el plan Free de Supabase permite 2 proyectos activos (hoy: Los Gladiolos + zafiro; voko-accesorios pausado).
-4. ~~Acceso del administrador~~ ✔ (PIN). Falta: cargar `ACCESO_PIN` en Vercel.
+3. Ojo: el plan Free de Supabase permite 2 proyectos activos (hoy: Los Gladiolos + zafiro; voko-accesorios pausado) y **pausa el proyecto tras ~1 semana sin actividad**. Si al volver la app no conecta, reactivarlo desde el panel de Supabase (Restore project).
+4. ~~Acceso del administrador~~ ✔ (PIN, `ACCESO_PIN` cargado en Vercel y probado en producción por el dev).
 5. Primer módulo del MVP (según las prioridades del cliente; candidato: productos y lista de precios, o campos y lotes).
