@@ -1,10 +1,10 @@
 import { Encabezado } from "@/components/app/encabezado";
-import { historialPrecios, obtenerDatos } from "@/lib/datos";
+import { obtenerDatos } from "@/lib/datos";
 import { BotonNuevoInsumo } from "@/components/app/altas";
 import { ListaInsumos } from "./lista-insumos";
 
 export default async function Insumos() {
-  const [{ productos }, historial] = await Promise.all([obtenerDatos(), historialPrecios()]);
+  const { productos, proveedores = [], camposPersonalizados = [] } = await obtenerDatos();
 
   return (
     <>
@@ -12,9 +12,9 @@ export default async function Insumos() {
         volver="/mas"
         titulo="Insumos y precios"
         subtitulo={`${productos.length} productos · precios en USD`}
-        acciones={<BotonNuevoInsumo />}
+        acciones={<BotonNuevoInsumo proveedores={proveedores} personalizados={camposPersonalizados} />}
       />
-      <ListaInsumos productos={productos} historial={historial} />
+      <ListaInsumos productos={productos} proveedores={proveedores} personalizados={camposPersonalizados} />
     </>
   );
 }

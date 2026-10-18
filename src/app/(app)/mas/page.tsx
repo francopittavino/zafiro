@@ -1,13 +1,29 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChartColumn, ChevronRight, FlaskConical, LogOut, Settings, Tractor } from "lucide-react";
+import {
+  Boxes,
+  ChartColumn,
+  ChevronRight,
+  FileText,
+  FlaskConical,
+  LogOut,
+  Receipt,
+  Settings,
+  Tractor,
+  Users,
+} from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { salir } from "../../acceso";
 
 const OPCIONES = [
-  { href: "/insumos", texto: "Insumos y precios", detalle: "Productos, unidades y lista de precios", icono: FlaskConical },
+  { href: "/productores", texto: "Productores", detalle: "A quiénes asesorás y sus campos", icono: Users },
+  { href: "/recetas", texto: "Recetas", detalle: "Resumen de la receta oficial, en PDF", icono: FileText },
+  { href: "/informes", texto: "Informes", detalle: "Costos, margen bruto y PDF para el productor", icono: ChartColumn },
+  { href: "/stock", texto: "Stock", detalle: "Insumos en cada campo", icono: Boxes },
+  { href: "/gastos", texto: "Otros gastos", detalle: "Alquiler, flete, seguros…", icono: Receipt },
+  { href: "/insumos", texto: "Insumos y precios", detalle: "Productos, unidades y precios", icono: FlaskConical },
   { href: "/labores", texto: "Labores y tarifas", detalle: "Tarifas en gasoil y tipo de cambio", icono: Tractor },
-  { href: "/informes", texto: "Informes", detalle: "Margen bruto, costos por campo, consumo", icono: ChartColumn },
+  { href: "/ajustes", texto: "Ajustes", detalle: "Datos propios, contratistas, proveedores", icono: Settings },
 ];
 
 export default function Mas() {
@@ -30,15 +46,6 @@ export default function Mas() {
               </Link>
             </li>
           ))}
-          <li className="text-muted-foreground flex items-center gap-3 px-4 py-3.5">
-            <span className="bg-muted rounded-lg p-2">
-              <Settings className="size-5" aria-hidden />
-            </span>
-            <span className="flex-1">
-              <span className="block font-bold">Ajustes</span>
-              <span className="block text-xs">Aportes, cultivos, valores por defecto · próximamente</span>
-            </span>
-          </li>
         </ul>
 
         <form action={salir}>

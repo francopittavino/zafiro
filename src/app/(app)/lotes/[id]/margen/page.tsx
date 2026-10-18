@@ -3,9 +3,10 @@ import { Encabezado } from "@/components/app/encabezado";
 import { BotonImprimir } from "@/components/app/boton-imprimir";
 import { margenDelLote } from "@/lib/consultas";
 import { num, usd, usd2 } from "@/lib/formato";
+import { BotonCosecha } from "../cosecha";
 
-const campo = "flex flex-col gap-1 text-sm font-bold";
-const entrada = "bg-card h-11 rounded-lg border border-input px-3 font-normal";
+
+
 
 export default async function MargenBruto({ params }: PageProps<"/lotes/[id]/margen">) {
   const { id } = await params;
@@ -21,11 +22,13 @@ export default async function MargenBruto({ params }: PageProps<"/lotes/[id]/mar
     { texto: "− Insumos", valor: costos.insumos },
     { texto: "− Labores", valor: costos.labores },
     { texto: "− Cosecha", valor: costos.cosecha },
+    { texto: "− Otros gastos", valor: costos.otros },
   ];
   const barras = [
     { texto: "Insumos", valor: costos.insumos },
     { texto: "Labores", valor: costos.labores },
     { texto: "Cosecha", valor: costos.cosecha },
+    { texto: "Otros gastos", valor: costos.otros },
     { texto: "Comerc. + flete", valor: r.comercializacion + r.flete },
   ];
   const maxTn = Math.max(...barras.map((b) => r.tnHa(b.valor)), r.tnHa(r.margen), 0.01);
@@ -41,42 +44,30 @@ export default async function MargenBruto({ params }: PageProps<"/lotes/[id]/mar
 
       <div className="grid gap-4 p-4 md:grid-cols-2 md:items-start md:p-0">
         <div className="flex flex-col gap-4">
-          <form className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+          <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
             <h2 className="font-bold">Datos de cosecha</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <label className={campo}>
-                Rinde kg/ha *
-                <input className={entrada} defaultValue={num(cosecha.rindeKgHa, 0)} inputMode="decimal" required />
-              </label>
-              <label className={campo}>
-                Pizarra USD/tn *
-                <input className={entrada} defaultValue={num(cosecha.precioPizarra)} inputMode="decimal" required />
-              </label>
-              <label className={campo}>
-                Arrendamiento %
-                <input className={entrada} defaultValue={num((cosecha.arrendamientoPorcentaje ?? 0) * 100)} inputMode="decimal" />
-              </label>
-              <label className={campo}>
-                Comercialización %
-                <input className={entrada} defaultValue={num(cosecha.gastosComercializacionPorcentaje * 100)} inputMode="decimal" />
-              </label>
-              <label className={campo}>
-                Flete USD/tn
-                <input className={entrada} defaultValue={num(cosecha.fleteUsdTn)} inputMode="decimal" />
-              </label>
-              <label className={campo}>
-                Bonificación %
-                <input className={entrada} placeholder="0" inputMode="decimal" />
-              </label>
-            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {[
+                ["Rinde", `${num(cosecha.rindeKgHa, 0)} kg/ha`],
+                ["Precio", `${num(cosecha.precioPizarra)} USD/tn`],
+                ["Arrendamiento", `${num((cosecha.arrendamientoPorcentaje ?? 0) * 100)} %`],
+                ["Comercialización", `${num(cosecha.gastosComercializacionPorcentaje * 100)} %`],
+                ["Flete", `${num(cosecha.fleteUsdTn)} USD/tn`],
+              ].map(([texto, valor]) => (
+                <div key={texto}>
+                  <dt className="text-muted-foreground text-xs">{texto}</dt>
+                  <dd className="font-bold tabular-nums">{valor}</dd>
+                </div>
+              ))}
+            </dl>
             <p className="text-muted-foreground text-xs">
               {num(r.tnBrutas, 1)} tn cosechadas · {num(r.tnArrendamiento, 1)} tn de arrendamiento ·{" "}
               {num(r.tnNetas, 1)} tn netas
             </p>
-            <button type="button" className="bg-primary text-primary-foreground h-11 rounded-lg font-bold">
-              Guardar datos de cosecha
-            </button>
-          </form>
+            <div className="no-imprimir grid">
+              <BotonCosecha loteId={lote.id} inicial={cosecha} />
+            </div>
+          </section>
         </div>
 
         <div className="flex flex-col gap-4">

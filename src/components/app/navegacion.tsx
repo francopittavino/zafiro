@@ -4,31 +4,51 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Boxes,
   ChartColumn,
   Ellipsis,
+  FileText,
   FlaskConical,
   House,
   List,
   LogOut,
   Map,
   Plus,
+  Receipt,
+  Settings,
   Tractor,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const activo = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(href + "/");
 
-/** En el celular, "Más" agrupa insumos, labores e informes. */
-const RUTAS_DE_MAS = ["/mas", "/insumos", "/labores", "/informes"];
+/** En el celular, "Más" agrupa todo lo que no entra en la barra inferior. */
+const RUTAS_DE_MAS = [
+  "/mas",
+  "/productores",
+  "/recetas",
+  "/stock",
+  "/gastos",
+  "/insumos",
+  "/labores",
+  "/informes",
+  "/ajustes",
+];
 
 const SECCIONES_PC = [
   { href: "/inicio", texto: "Inicio", icono: House },
+  { href: "/productores", texto: "Productores", icono: Users },
   { href: "/lotes", texto: "Campos y lotes", icono: Map },
   { href: "/historial", texto: "Historial", icono: List },
+  { href: "/recetas", texto: "Recetas", icono: FileText },
+  { href: "/stock", texto: "Stock", icono: Boxes },
+  { href: "/gastos", texto: "Otros gastos", icono: Receipt },
   { href: "/insumos", texto: "Insumos y precios", icono: FlaskConical },
   { href: "/labores", texto: "Labores y tarifas", icono: Tractor },
   { href: "/informes", texto: "Informes", icono: ChartColumn },
+  { href: "/ajustes", texto: "Ajustes", icono: Settings },
 ];
 
 export function BarraLateral({ salir }: { salir: () => Promise<void> }) {

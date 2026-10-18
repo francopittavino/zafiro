@@ -184,6 +184,8 @@ export type Datos = {
   productos: Producto[];
   tiposLabor: TipoLabor[];
   aportes: string[];
+  /** Los mismos aportes con su id (para editarlos en Ajustes). */
+  listaAportes?: Catalogo[];
   contratistas?: Catalogo[];
   proveedores?: Catalogo[];
   categoriasGasto?: Catalogo[];
@@ -387,6 +389,7 @@ async function datosDeLaBase(): Promise<Datos> {
       costoUsdHa: n(t.costoUsdHa),
     })),
     aportes: filasAportes.map((a) => a.nombre),
+    listaAportes: filasAportes.map((a) => ({ id: a.id, nombre: a.nombre })),
     contratistas: filasContratistas,
     proveedores: filasProveedores,
     categoriasGasto: filasCategorias,
@@ -452,6 +455,39 @@ async function datosDeLaBase(): Promise<Datos> {
 export const obtenerDatos = cache(async (): Promise<Datos> =>
   modoDemo() ? datosDemo() : datosDeLaBase(),
 );
+
+export type Movimiento = {
+  id: number;
+  productoId: number;
+  fecha: string;
+  tipo: "ingreso" | "aplicacion" | "ajuste";
+  cantidad: number;
+  laborId: number | null;
+  proveedor: string | null;
+  nota: string | null;
+};
+
+/** Últimos movimientos de stock de un campo, del más nuevo al más viejo. */
+export async function movimientosDeCampo(campoId: number, limite = 100): Promise<Movimiento[]> {
+  if (modoDemo()) return [];
+  const filas = await db
+    .select({ m: movimientosStock, proveedor: proveedores.nombre })
+    .from(movimientosStock)
+    .leftJoin(proveedores, eq(movimientosStock.proveedorId, proveedores.id))
+    .where(eq(movimientosStock.campoId, campoId))
+    .orderBy(desc(movimientosStock.fecha), desc(movimientosStock.id))
+    .limit(limite);
+  return filas.map(({ m, proveedor }) => ({
+    id: m.id,
+    productoId: m.productoId,
+    fecha: m.fecha,
+    tipo: m.tipo,
+    cantidad: Number(m.cantidad),
+    laborId: m.laborId,
+    proveedor,
+    nota: m.nota,
+  }));
+}
 
 /** Si la labor descontó sus productos del stock (para respetarlo al editarla). */
 export async function laborDescontoStock(laborId: number) {

@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, dbTx } from "@/db";
 import {
   aportes,
-  ciclos,
   contratistas,
   laborInsumos,
   labores,
@@ -17,6 +16,7 @@ import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual, type DatosAplicacion } from "@/lib/datos";
 import { limpiarExtras } from "@/lib/extras";
 import { dibujoValido } from "@/lib/dibujo";
+import { cicloDelLote, type Tx } from "@/lib/ciclos";
 import { modoDemo } from "@/lib/modo-demo";
 
 export type DatosLabor = {
@@ -68,26 +68,6 @@ function validar(labor: DatosLabor): string | null {
   if (!labor.insumos.every((i) => Number.isInteger(i.productoId) && positivo(i.dosis) && noNegativo(i.precio)))
     return "Revisá la dosis y el precio de los productos.";
   return null;
-}
-
-type Tx = Parameters<Parameters<typeof dbTx.transaction>[0]>[0];
-
-/** El ciclo es el cultivo del lote en la campaña; si todavía no existe se crea. */
-async function cicloDelLote(tx: Tx, loteId: number, campaniaId: number) {
-  const [ciclo] = await tx
-    .select({ id: ciclos.id })
-    .from(ciclos)
-    .where(and(eq(ciclos.loteId, loteId), eq(ciclos.campaniaId, campaniaId)))
-    .limit(1);
-  if (ciclo) return ciclo.id;
-
-  const [lote] = await tx.select().from(lotes).where(eq(lotes.id, loteId));
-  if (!lote) throw new Error("Lote inexistente");
-  const [nuevo] = await tx
-    .insert(ciclos)
-    .values({ loteId: lote.id, campaniaId, cultivo: "Sin definir", superficieHa: lote.superficieHa })
-    .returning({ id: ciclos.id });
-  return nuevo.id;
 }
 
 /** Busca el aporte por nombre; si es uno nuevo (se escribió en el formulario), lo crea. */

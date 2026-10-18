@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { ChipCultivo } from "@/components/app/chip-cultivo";
 import { BotonEditarLote } from "@/components/app/altas";
 import { GaleriaFotos } from "@/components/app/galeria-fotos";
+import { valoresExtra } from "@/components/app/campos-extra";
 import { fotosDe } from "@/lib/fotos";
 import { obtenerDatos } from "@/lib/datos";
-import { costosDelCiclo, laboresDetalladas, margenDelLote } from "@/lib/consultas";
-import { fechaCorta, usd } from "@/lib/formato";
+import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
+import { fechaCorta, num, usd } from "@/lib/formato";
+import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
+import { BotonCosecha } from "./cosecha";
 
 export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   const { id } = await params;
@@ -17,23 +20,41 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   if (!lote) notFound();
 
   const campo = datos.campos.find((c) => c.id === lote.campoId);
+  const productor = datos.productores?.find((p) => p.id === campo?.productorId);
   const labores = await laboresDetalladas({ loteId: lote.id });
-  const costos = costosDelCiclo(labores);
+  const otros = otrosGastosDelLote(datos, lote);
+  const costos = costosDelCiclo(labores, otros.total);
   const margen = await margenDelLote(lote.id);
+  const cosecha = datos.cosechas.find((c) => c.loteId === lote.id);
   const galeria = await fotosDe({ tipo: "lote", id: lote.id });
+  const personalizados = datos.camposPersonalizados ?? [];
   const partes = [
     { texto: "Insumos", valor: costos.insumos, clase: "bg-primary" },
     { texto: "Labores", valor: costos.labores, clase: "bg-zafiro" },
     { texto: "Cosecha", valor: costos.cosecha, clase: "bg-chart-3" },
-  ];
+    { texto: "Otros gastos", valor: costos.otros, clase: "bg-sol" },
+  ].filter((p) => p.valor > 0);
+
+  const ficha = [
+    { nombre: "Productor", valor: productor?.nombre },
+    { nombre: "Variedad / híbrido", valor: lote.variedad },
+    { nombre: "Siembra", valor: lote.fechaSiembra && fechaCorta(lote.fechaSiembra) },
+    { nombre: "Tenencia", valor: lote.tenencia === "propio" ? "Propio" : lote.tenencia === "alquilado" ? "Alquilado" : null },
+    { nombre: "Suelo", valor: lote.tipoSuelo },
+    ...valoresExtra(personalizados.filter((c) => c.entidad === "lote"), lote.extras),
+  ].filter((d) => d.valor);
+  const mapa =
+    lote.latitud != null && lote.longitud != null
+      ? `https://www.google.com/maps?q=${lote.latitud},${lote.longitud}`
+      : null;
 
   return (
     <>
       <Encabezado
-        volver="/lotes"
+        volver={campo ? `/campos/${campo.id}` : "/lotes"}
         titulo={`${lote.codigo} · ${lote.nombre}`}
         subtitulo={`${campo?.nombre} · ${usd(lote.ha)} ha`}
-        acciones={<BotonEditarLote campos={datos.campos} lote={lote} />}
+        acciones={<BotonEditarLote campos={datos.campos} lote={lote} personalizados={personalizados} />}
       />
 
       <div className="grid gap-4 p-4 md:grid-cols-[1fr_1.4fr] md:items-start md:p-0">
@@ -45,6 +66,25 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
             <ChipCultivo cultivo={lote.cultivo} />
           </div>
 
+          {(ficha.length > 0 || mapa || lote.notas) && (
+            <section className="bg-card rounded-xl border p-4 text-sm">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {ficha.map((d) => (
+                  <div key={d.nombre}>
+                    <dt className="text-muted-foreground text-xs">{d.nombre}</dt>
+                    <dd className="font-bold">{d.valor}</dd>
+                  </div>
+                ))}
+              </dl>
+              {mapa && (
+                <a href={mapa} target="_blank" rel="noreferrer" className="text-zafiro mt-2 block text-sm font-bold">
+                  Ver ubicación en el mapa →
+                </a>
+              )}
+              {lote.notas && <p className="text-muted-foreground mt-2 whitespace-pre-line">{lote.notas}</p>}
+            </section>
+          )}
+
           <section className="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4">
             <div>
               <p className="text-muted-foreground text-xs">Costo total</p>
@@ -54,7 +94,9 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
             {margen ? (
               <Link href={`/lotes/${lote.id}/margen`} className="hover:bg-muted/60 -m-2 rounded-lg p-2">
                 <p className="text-muted-foreground text-xs">Margen bruto</p>
-                <p className="text-positivo text-xl font-black tabular-nums">USD {usd(margen.resultado.margen)}</p>
+                <p className={`text-xl font-black tabular-nums ${margen.resultado.margen < 0 ? "text-destructive" : "text-positivo"}`}>
+                  USD {usd(margen.resultado.margen)}
+                </p>
                 <p className="text-zafiro text-xs font-bold">Ver detalle →</p>
               </Link>
             ) : (
@@ -80,52 +122,105 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
                 </ul>
               </>
             )}
+            <div className="col-span-2 grid">
+              <BotonCosecha loteId={lote.id} inicial={cosecha} />
+            </div>
+            {cosecha && (
+              <p className="text-muted-foreground col-span-2 -mt-2 text-xs">
+                Rinde {num(cosecha.rindeKgHa, 0)} kg/ha · {usd(cosecha.precioPizarra)} USD/tn
+              </p>
+            )}
           </section>
 
-          <Link
-            href={`/registrar?lote=${lote.id}`}
-            className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
-          >
-            <Plus className="size-5" aria-hidden />
-            Registrar labor en este lote
-          </Link>
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              href={`/registrar?lote=${lote.id}`}
+              className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
+            >
+              <Plus className="size-5" aria-hidden />
+              Labor
+            </Link>
+            <Link
+              href={`/recetas/nueva?lote=${lote.id}`}
+              className="bg-card hover:bg-muted flex h-12 items-center justify-center gap-2 rounded-xl border font-bold"
+            >
+              <FileText className="size-5" aria-hidden />
+              Receta
+            </Link>
+          </div>
 
           <GaleriaFotos destino={{ tipo: "lote", id: lote.id }} {...galeria} />
         </div>
 
-        <section>
-          <h2 className="mb-2 font-bold">Labores del ciclo</h2>
-          {labores.length === 0 ? (
-            <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">
-              Todavía no hay labores en este lote.
-            </p>
-          ) : (
-            <ol className="bg-card divide-y rounded-xl border">
-              {labores.map((l) => (
-                <li key={l.id}>
-                  <Link
-                    href={`/registrar?labor=${l.id}`}
-                    className="hover:bg-muted/60 grid grid-cols-[52px_1fr_auto] gap-2 px-4 py-3"
-                  >
-                  <span className="text-muted-foreground pt-0.5 text-xs">{fechaCorta(l.fecha)}</span>
-                  <span className="min-w-0">
-                    <span className="block font-bold">
-                      {l.tipo}
-                      {l.ha !== lote.ha && <span className="text-muted-foreground font-normal"> · {usd(l.ha)} ha</span>}
-                    </span>
-                    {l.productos.length > 0 && (
-                      <span className="text-muted-foreground block text-sm">
-                        {l.productos.map((p) => p.nombre).join(", ")}
+        <div className="flex flex-col gap-4">
+          <section>
+            <h2 className="mb-2 font-bold">Labores del ciclo</h2>
+            {labores.length === 0 ? (
+              <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">
+                Todavía no hay labores en este lote.
+              </p>
+            ) : (
+              <ol className="bg-card divide-y rounded-xl border">
+                {labores.map((l) => (
+                  <li key={l.id}>
+                    <Link
+                      href={`/registrar?labor=${l.id}`}
+                      className="hover:bg-muted/60 grid grid-cols-[52px_1fr_auto] gap-2 px-4 py-3"
+                    >
+                      <span className="text-muted-foreground pt-0.5 text-xs">{fechaCorta(l.fecha)}</span>
+                      <span className="min-w-0">
+                        <span className="block font-bold">
+                          {l.tipo}
+                          {l.ha !== lote.ha && <span className="text-muted-foreground font-normal"> · {usd(l.ha)} ha</span>}
+                        </span>
+                        {l.productos.length > 0 && (
+                          <span className="text-muted-foreground block text-sm">
+                            {l.productos.map((p) => p.nombre).join(", ")}
+                          </span>
+                        )}
+                        {l.contratista && <span className="text-muted-foreground block text-xs">{l.contratista}</span>}
                       </span>
-                    )}
-                  </span>
-                    <span className="font-bold tabular-nums">{usd(l.costo.total)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+                      <span className="font-bold tabular-nums">{usd(l.costo.total)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="font-bold">Otros gastos</h2>
+              <BotonNuevoGasto
+                campos={datos.campos}
+                lotes={datos.lotes}
+                categorias={datos.categoriasGasto ?? []}
+                inicial={{ loteId: lote.id }}
+              />
+            </div>
+            {otros.gastos.length === 0 ? (
+              <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">
+                Alquiler, flete, seguros… Los gastos del campo entero se reparten por hectárea.
+              </p>
+            ) : (
+              <ul className="bg-card divide-y rounded-xl border">
+                {otros.gastos.map((g) => (
+                  <li key={g.id} className="grid grid-cols-[52px_1fr_auto] gap-2 px-4 py-3">
+                    <span className="text-muted-foreground pt-0.5 text-xs">{fechaCorta(g.fecha)}</span>
+                    <span className="min-w-0">
+                      <span className="block font-bold">{g.categoria}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        {g.prorrateado ? "Parte del gasto del campo" : "Del lote"}
+                        {g.descripcion && ` · ${g.descripcion}`}
+                      </span>
+                    </span>
+                    <span className="font-bold tabular-nums">{usd(g.importe)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </>
   );

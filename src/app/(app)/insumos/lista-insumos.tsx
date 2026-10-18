@@ -2,17 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { Search } from "lucide-react";
-import type { PrecioHistorico, Producto } from "@/lib/datos";
-import { NOMBRE_CATEGORIA, fechaCorta, hoyIso, leerNumero, usd2 } from "@/lib/formato";
+import type { Catalogo, CampoPersonalizado, Producto } from "@/lib/datos";
+import { NOMBRE_CATEGORIA, hoyIso, leerNumero, usd2 } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { BotonAlta, FormProducto } from "@/components/app/altas";
+import { valoresExtra } from "@/components/app/campos-extra";
 import { agregarPrecio } from "./acciones";
 
 export function ListaInsumos({
   productos,
-  historial,
+  proveedores,
+  personalizados,
 }: {
   productos: Producto[];
-  historial: Record<number, PrecioHistorico[]>;
+  proveedores: Catalogo[];
+  personalizados: CampoPersonalizado[];
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -75,7 +79,9 @@ export function ListaInsumos({
                 <span className="text-muted-foreground block text-xs">USD/{p.unidad}</span>
               </span>
             </button>
-            {abierto === p.id && <DetallePrecios producto={p} precios={historial[p.id] ?? []} />}
+            {abierto === p.id && (
+              <DetallePrecios producto={p} proveedores={proveedores} personalizados={personalizados} />
+            )}
           </li>
         ))}
       </ul>
@@ -87,12 +93,32 @@ export function ListaInsumos({
 const entrada =
   "bg-card h-11 w-full rounded-lg border border-input px-3 font-normal outline-none focus:border-ring focus:ring-3 focus:ring-ring/30";
 
-function DetallePrecios({ producto, precios }: { producto: Producto; precios: PrecioHistorico[] }) {
+function DetallePrecios({
+  producto,
+  proveedores,
+  personalizados,
+}: {
+  producto: Producto;
+  proveedores: Catalogo[];
+  personalizados: CampoPersonalizado[];
+}) {
   const [cargando, setCargando] = useState(false);
   const [precio, setPrecio] = useState("");
   const [fecha, setFecha] = useState(hoyIso);
   const [mensaje, setMensaje] = useState<{ error: boolean; texto: string } | null>(null);
   const [guardando, iniciar] = useTransition();
+  const datos = [
+    { nombre: "Principio activo", valor: producto.principioActivo },
+    { nombre: "Concentración", valor: producto.concentracion },
+    { nombre: "Formulación", valor: producto.formulacion },
+    { nombre: "Presentación", valor: producto.presentacion },
+    { nombre: "Banda toxicológica", valor: producto.bandaToxicologica },
+    { nombre: "Carencia", valor: producto.carenciaDias != null ? `${producto.carenciaDias} días` : null },
+    ...valoresExtra(
+      personalizados.filter((c) => c.entidad === "producto"),
+      producto.extras,
+    ),
+  ].filter((d) => d.valor);
 
   function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -122,20 +148,17 @@ function DetallePrecios({ producto, precios }: { producto: Producto; precios: Pr
 
   return (
     <div className="flex flex-col gap-3 px-4 pb-4">
-      <div className="text-muted-foreground text-xs">
-        <p className="font-bold tracking-wider uppercase">Historial de precios</p>
-        <ul className="mt-1 flex flex-col gap-0.5">
-          {precios.map((h, i) => (
-            <li key={`${h.fecha}-${i}`} className="flex justify-between">
-              <span>
-                {h.fecha ? fechaCorta(h.fecha) : "Importado de la planilla"}
-                {i === 0 && precios.length > 1 && <span className="text-zafiro font-bold"> · vigente</span>}
-              </span>
-              <span className="text-foreground tabular-nums">{usd2(h.precio)}</span>
-            </li>
+      {datos.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+          {datos.map((d) => (
+            <div key={d.nombre}>
+              <dt className="text-muted-foreground">{d.nombre}</dt>
+              <dd className="font-bold">{d.valor}</dd>
+            </div>
           ))}
-        </ul>
-      </div>
+        </dl>
+      )}
+      {producto.notas && <p className="text-muted-foreground text-xs whitespace-pre-line">{producto.notas}</p>}
 
       {mensaje && (
         <p
@@ -190,16 +213,32 @@ function DetallePrecios({ producto, precios }: { producto: Producto; precios: Pr
           </div>
         </form>
       ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setCargando(true);
-            setMensaje(null);
-          }}
-          className="bg-primary text-primary-foreground h-11 rounded-lg text-sm font-bold"
-        >
-          Nuevo precio
-        </button>
+        <div className="grid grid-cols-2 gap-2 [&>button]:h-11">
+          <BotonAlta
+            texto="Editar insumo"
+            titulo="Editar insumo"
+            variante="secundario"
+            formulario={(listo) => (
+              <FormProducto
+                proveedores={proveedores}
+                personalizados={personalizados}
+                inicial={producto}
+                productoId={producto.id}
+                alGuardar={listo}
+              />
+            )}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setCargando(true);
+              setMensaje(null);
+            }}
+            className="bg-primary text-primary-foreground h-11 rounded-lg text-sm font-bold"
+          >
+            Cambiar precio
+          </button>
+        </div>
       )}
     </div>
   );
