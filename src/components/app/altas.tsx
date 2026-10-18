@@ -2,31 +2,36 @@
 
 import { useState, useTransition } from "react";
 import { Dialogo } from "./dialogo";
-import type { Campo } from "@/lib/datos";
+import { CamposExtra, leerExtras } from "./campos-extra";
+import type { Campo, Catalogo, CampoPersonalizado, Lote, Producto, Productor } from "@/lib/datos";
 import { CATEGORIAS_LABOR, CATEGORIAS_PRODUCTO, CULTIVOS_SUGERIDOS, UNIDADES } from "@/lib/catalogos";
 import { hoyIso, leerNumero, numeroEditable } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
-  crearAporte,
-  crearCampo,
-  crearProducto,
+  crearEnLista,
   crearTipoLabor,
+  guardarCampo,
   guardarCotizacion,
   guardarLote,
+  guardarProductor,
+  guardarProducto,
+  type ListaSimple,
   type ResultadoAlta,
 } from "@/app/(app)/acciones-catalogos";
 
-/** Formularios de alta (y edición de lote) que se abren en un Dialogo desde cualquier pantalla. */
+/** Formularios de alta y edición que se abren en un Dialogo desde cualquier pantalla. */
 
 export const etiqueta = "flex flex-col gap-1 text-sm font-bold";
 export const entrada =
   "bg-card h-11 w-full rounded-lg border border-input px-3 font-normal outline-none focus:border-ring focus:ring-3 focus:ring-ring/30";
+export const areaTexto =
+  "bg-card border-input focus:border-ring w-full rounded-lg border p-3 font-normal outline-none";
 
 /** Se llama al guardar: `id` es el registro creado (no viene en modo demo). */
 type AlGuardar = (id?: number) => void;
 
 /** Envía una acción y maneja "guardando…" y el mensaje de error. */
-function useEnvio(alGuardar: AlGuardar) {
+export function useEnvio(alGuardar: AlGuardar) {
   const [error, setError] = useState("");
   const [guardando, iniciar] = useTransition();
   const enviar = (accion: () => Promise<ResultadoAlta>) =>
@@ -38,7 +43,7 @@ function useEnvio(alGuardar: AlGuardar) {
   return { error, setError, guardando, enviar };
 }
 
-function Pie({ error, guardando, texto = "Guardar" }: { error: string; guardando: boolean; texto?: string }) {
+export function Pie({ error, guardando, texto = "Guardar" }: { error: string; guardando: boolean; texto?: string }) {
   return (
     <>
       {error && (
@@ -54,6 +59,43 @@ function Pie({ error, guardando, texto = "Guardar" }: { error: string; guardando
         {guardando ? "Guardando…" : texto}
       </button>
     </>
+  );
+}
+
+/** Bloque plegable con los datos opcionales, para que el formulario corto quede corto. */
+export function MasDatos({ children, abierto = false }: { children: React.ReactNode; abierto?: boolean }) {
+  return (
+    <details open={abierto} className="group rounded-xl border">
+      <summary className="text-zafiro flex h-11 cursor-pointer items-center px-3 text-sm font-bold">
+        <span className="group-open:hidden">+ Más datos (opcionales)</span>
+        <span className="hidden group-open:inline">− Más datos (opcionales)</span>
+      </summary>
+      <div className="flex flex-col gap-3 border-t p-3">{children}</div>
+    </details>
+  );
+}
+
+/** Lee un número opcional del formulario: vacío → null; inválido → NaN (para avisar). */
+export function numeroOpcional(f: FormData, nombre: string) {
+  const valor = String(f.get(nombre) ?? "").trim();
+  return valor ? leerNumero(valor) : null;
+}
+
+const invalido = (...valores: (number | null)[]) => valores.some((v) => v !== null && Number.isNaN(v));
+const valorTexto = (v: number | null | undefined) => (v == null ? "" : numeroEditable(v));
+
+function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?: number | null }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <label className={etiqueta}>
+        Latitud
+        <input name="latitud" className={entrada} inputMode="decimal" defaultValue={valorTexto(latitud)} placeholder="-32,4825" />
+      </label>
+      <label className={etiqueta}>
+        Longitud
+        <input name="longitud" className={entrada} inputMode="decimal" defaultValue={valorTexto(longitud)} placeholder="-58,2372" />
+      </label>
+    </div>
   );
 }
 
@@ -91,50 +133,179 @@ export function BotonAlta({
   );
 }
 
-// ─── Campo ──────────────────────────────────────────────────────────────────
+// ─── Productor ──────────────────────────────────────────────────────────────
 
-export function FormCampo({ alGuardar }: { alGuardar: AlGuardar }) {
+export function FormProductor({
+  inicial,
+  productorId,
+  alGuardar,
+}: {
+  inicial?: Productor;
+  productorId?: number;
+  alGuardar: AlGuardar;
+}) {
   const { error, guardando, enviar } = useEnvio(alGuardar);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        enviar(() => crearCampo({ nombre: String(f.get("nombre")), localidad: String(f.get("localidad")) }));
+        const campo = (n: string) => String(f.get(n) ?? "");
+        enviar(() =>
+          guardarProductor(
+            {
+              nombre: campo("nombre"),
+              cuit: campo("cuit"),
+              telefono: campo("telefono"),
+              email: campo("email"),
+              localidad: campo("localidad"),
+              notas: campo("notas"),
+            },
+            productorId,
+          ),
+        );
+      }}
+      className="flex flex-col gap-3"
+    >
+      <label className={etiqueta}>
+        Nombre o razón social *
+        <input name="nombre" className={entrada} defaultValue={inicial?.nombre} required autoFocus />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className={etiqueta}>
+          Teléfono
+          <input name="telefono" type="tel" className={entrada} defaultValue={inicial?.telefono ?? ""} />
+        </label>
+        <label className={etiqueta}>
+          CUIT
+          <input name="cuit" className={entrada} defaultValue={inicial?.cuit ?? ""} />
+        </label>
+      </div>
+      <label className={etiqueta}>
+        Email
+        <input name="email" type="email" className={entrada} defaultValue={inicial?.email ?? ""} />
+      </label>
+      <label className={etiqueta}>
+        Localidad
+        <input name="localidad" className={entrada} defaultValue={inicial?.localidad ?? ""} />
+      </label>
+      <label className={etiqueta}>
+        Notas
+        <textarea name="notas" rows={2} className={areaTexto} defaultValue={inicial?.notas ?? ""} />
+      </label>
+      <Pie error={error} guardando={guardando} texto={productorId ? "Guardar cambios" : "Guardar"} />
+    </form>
+  );
+}
+
+// ─── Campo ──────────────────────────────────────────────────────────────────
+
+export function FormCampo({
+  productores = [],
+  personalizados = [],
+  inicial,
+  campoId,
+  alGuardar,
+}: {
+  productores?: Productor[];
+  personalizados?: CampoPersonalizado[];
+  inicial?: Campo;
+  campoId?: number;
+  alGuardar: AlGuardar;
+}) {
+  const { error, setError, guardando, enviar } = useEnvio(alGuardar);
+  const extras = personalizados.filter((c) => c.entidad === "campo");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        const latitud = numeroOpcional(f, "latitud");
+        const longitud = numeroOpcional(f, "longitud");
+        if (invalido(latitud, longitud)) return setError("Las coordenadas tienen que ser números (ej. -32,4825).");
+        const productor = String(f.get("productorId") ?? "");
+        enviar(() =>
+          guardarCampo(
+            {
+              nombre: String(f.get("nombre")),
+              productorId: productor ? Number(productor) : null,
+              localidad: String(f.get("localidad") ?? ""),
+              provincia: String(f.get("provincia") ?? ""),
+              latitud,
+              longitud,
+              notas: String(f.get("notas") ?? ""),
+              extras: leerExtras(f),
+            },
+            campoId,
+          ),
+        );
       }}
       className="flex flex-col gap-3"
     >
       <label className={etiqueta}>
         Nombre *
-        <input name="nombre" className={entrada} placeholder="Ej. Estancia Santa Marta" required autoFocus />
+        <input
+          name="nombre"
+          className={entrada}
+          defaultValue={inicial?.nombre}
+          placeholder="Ej. Estancia Santa Marta"
+          required
+          autoFocus
+        />
       </label>
       <label className={etiqueta}>
-        Localidad
-        <input name="localidad" className={entrada} placeholder="Opcional" />
+        Productor
+        <select name="productorId" className={entrada} defaultValue={inicial?.productorId ?? ""}>
+          <option value="">Sin productor</option>
+          {productores.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nombre}
+            </option>
+          ))}
+        </select>
       </label>
-      <Pie error={error} guardando={guardando} />
+      <div className="grid grid-cols-2 gap-3">
+        <label className={etiqueta}>
+          Localidad
+          <input name="localidad" className={entrada} defaultValue={inicial?.localidad ?? ""} />
+        </label>
+        <label className={etiqueta}>
+          Provincia
+          <input name="provincia" className={entrada} defaultValue={inicial?.provincia ?? "Entre Ríos"} />
+        </label>
+      </div>
+      <MasDatos>
+        <Coordenadas latitud={inicial?.latitud} longitud={inicial?.longitud} />
+        <CamposExtra campos={extras} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
+        <label className={etiqueta}>
+          Notas
+          <textarea name="notas" rows={2} className={areaTexto} defaultValue={inicial?.notas ?? ""} />
+        </label>
+      </MasDatos>
+      <Pie error={error} guardando={guardando} texto={campoId ? "Guardar cambios" : "Guardar"} />
     </form>
   );
 }
 
 // ─── Lote (alta y edición) ──────────────────────────────────────────────────
 
-export type ValoresLote = { campoId: number; nombre: string; codigo: string; ha: number; cultivo: string };
-
 export function FormLote({
   campos,
+  personalizados = [],
   inicial,
   loteId,
   alGuardar,
 }: {
   campos: Campo[];
-  inicial?: Partial<ValoresLote>;
+  personalizados?: CampoPersonalizado[];
+  inicial?: Partial<Lote>;
   loteId?: number;
   alGuardar: AlGuardar;
 }) {
   const { error, setError, guardando, enviar } = useEnvio(alGuardar);
   const [campoId, setCampoId] = useState(inicial?.campoId ? String(inicial.campoId) : "");
   const nuevoCampo = campoId === "__nuevo__";
+  const extras = personalizados.filter((c) => c.entidad === "lote");
 
   return (
     <form
@@ -143,6 +314,10 @@ export function FormLote({
         const f = new FormData(e.currentTarget);
         const ha = leerNumero(String(f.get("ha")));
         if (!(ha > 0)) return setError("La superficie tiene que ser un número mayor a 0.");
+        const latitud = numeroOpcional(f, "latitud");
+        const longitud = numeroOpcional(f, "longitud");
+        if (invalido(latitud, longitud)) return setError("Las coordenadas tienen que ser números (ej. -32,4825).");
+        const tenencia = String(f.get("tenencia") ?? "");
         enviar(() =>
           guardarLote(
             {
@@ -152,6 +327,14 @@ export function FormLote({
               codigo: String(f.get("codigo")),
               ha,
               cultivo: String(f.get("cultivo")),
+              variedad: String(f.get("variedad") ?? ""),
+              fechaSiembra: String(f.get("fechaSiembra") ?? ""),
+              tenencia: tenencia === "propio" || tenencia === "alquilado" ? tenencia : null,
+              tipoSuelo: String(f.get("tipoSuelo") ?? ""),
+              latitud,
+              longitud,
+              notas: String(f.get("notas") ?? ""),
+              extras: leerExtras(f),
             },
             loteId,
           ),
@@ -208,6 +391,38 @@ export function FormLote({
           </datalist>
         </label>
       </div>
+      <MasDatos>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={etiqueta}>
+            Variedad / híbrido
+            <input name="variedad" className={entrada} defaultValue={inicial?.variedad ?? ""} />
+          </label>
+          <label className={etiqueta}>
+            Fecha de siembra
+            <input name="fechaSiembra" type="date" className={entrada} defaultValue={inicial?.fechaSiembra ?? ""} />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={etiqueta}>
+            Tenencia
+            <select name="tenencia" className={entrada} defaultValue={inicial?.tenencia ?? ""}>
+              <option value="">Sin dato</option>
+              <option value="propio">Propio</option>
+              <option value="alquilado">Alquilado</option>
+            </select>
+          </label>
+          <label className={etiqueta}>
+            Tipo de suelo
+            <input name="tipoSuelo" className={entrada} defaultValue={inicial?.tipoSuelo ?? ""} />
+          </label>
+        </div>
+        <Coordenadas latitud={inicial?.latitud} longitud={inicial?.longitud} />
+        <CamposExtra campos={extras} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
+        <label className={etiqueta}>
+          Notas
+          <textarea name="notas" rows={2} className={areaTexto} defaultValue={inicial?.notas ?? ""} />
+        </label>
+      </MasDatos>
       <Pie error={error} guardando={guardando} texto={loteId ? "Guardar cambios" : "Guardar"} />
     </form>
   );
@@ -215,35 +430,72 @@ export function FormLote({
 
 // ─── Insumo ─────────────────────────────────────────────────────────────────
 
-export function FormProducto({ alGuardar }: { alGuardar: AlGuardar }) {
+export function FormProducto({
+  proveedores = [],
+  personalizados = [],
+  inicial,
+  productoId,
+  alGuardar,
+}: {
+  proveedores?: Catalogo[];
+  personalizados?: CampoPersonalizado[];
+  inicial?: Producto;
+  productoId?: number;
+  alGuardar: AlGuardar;
+}) {
   const { error, setError, guardando, enviar } = useEnvio(alGuardar);
+  const extras = personalizados.filter((c) => c.entidad === "producto");
+  const editando = productoId !== undefined;
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        const precio = leerNumero(String(f.get("precio")));
-        if (!(precio >= 0)) return setError("Escribí un precio válido (ej. 5,75).");
+        const precio = editando ? undefined : leerNumero(String(f.get("precio")));
+        if (precio !== undefined && !(precio >= 0)) return setError("Escribí un precio válido (ej. 5,75).");
+        const carencia = numeroOpcional(f, "carenciaDias");
+        if (carencia !== null && !(Number.isInteger(carencia) && carencia >= 0))
+          return setError("La carencia va en días (número entero).");
+        const proveedor = String(f.get("proveedorId") ?? "");
+        const campo = (n: string) => String(f.get(n) ?? "");
         enviar(() =>
-          crearProducto({
-            nombre: String(f.get("nombre")),
-            categoria: String(f.get("categoria")),
-            unidad: String(f.get("unidad")),
-            precio,
-            principioActivo: String(f.get("principioActivo")),
-          }),
+          guardarProducto(
+            {
+              nombre: campo("nombre"),
+              categoria: campo("categoria"),
+              unidad: campo("unidad"),
+              precio,
+              proveedorId: proveedor ? Number(proveedor) : null,
+              principioActivo: campo("principioActivo"),
+              concentracion: campo("concentracion"),
+              formulacion: campo("formulacion"),
+              presentacion: campo("presentacion"),
+              bandaToxicologica: campo("bandaToxicologica"),
+              carenciaDias: carencia,
+              notas: campo("notas"),
+              extras: leerExtras(f),
+            },
+            productoId,
+          ),
         );
       }}
       className="flex flex-col gap-3"
     >
       <label className={etiqueta}>
         Nombre comercial *
-        <input name="nombre" className={entrada} placeholder="Ej. Glifosato 66%" required autoFocus />
+        <input
+          name="nombre"
+          className={entrada}
+          defaultValue={inicial?.nombre}
+          placeholder="Ej. Glifosato 66%"
+          required
+          autoFocus
+        />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className={etiqueta}>
           Tipo *
-          <select name="categoria" className={entrada} required defaultValue="">
+          <select name="categoria" className={entrada} required defaultValue={inicial?.categoria ?? ""}>
             <option value="" disabled>
               Elegí…
             </option>
@@ -256,7 +508,7 @@ export function FormProducto({ alGuardar }: { alGuardar: AlGuardar }) {
         </label>
         <label className={etiqueta}>
           Unidad *
-          <select name="unidad" className={entrada} required defaultValue="">
+          <select name="unidad" className={entrada} required defaultValue={inicial?.unidad ?? ""}>
             <option value="" disabled>
               Elegí…
             </option>
@@ -268,18 +520,76 @@ export function FormProducto({ alGuardar }: { alGuardar: AlGuardar }) {
           </select>
         </label>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {!editando && (
+        <div className="grid grid-cols-2 gap-3">
+          <label className={etiqueta}>
+            Precio USD por unidad *
+            <input name="precio" className={entrada} inputMode="decimal" required />
+          </label>
+          <label className={etiqueta}>
+            Proveedor
+            <select name="proveedorId" className={entrada} defaultValue="">
+              <option value="">Sin dato</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      <label className={etiqueta}>
+        Principio activo
+        <input name="principioActivo" className={entrada} defaultValue={inicial?.principioActivo ?? ""} />
+      </label>
+      <MasDatos>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={etiqueta}>
+            Concentración
+            <input name="concentracion" className={entrada} defaultValue={inicial?.concentracion ?? ""} placeholder="Ej. 66,2%" />
+          </label>
+          <label className={etiqueta}>
+            Formulación
+            <input name="formulacion" className={entrada} defaultValue={inicial?.formulacion ?? ""} placeholder="Ej. SL, EC" />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={etiqueta}>
+            Presentación
+            <input name="presentacion" className={entrada} defaultValue={inicial?.presentacion ?? ""} placeholder="Bidón 20 L" />
+          </label>
+          <label className={etiqueta}>
+            Banda toxicológica
+            <select name="bandaToxicologica" className={entrada} defaultValue={inicial?.bandaToxicologica ?? ""}>
+              <option value="">Sin dato</option>
+              {["Ia (roja)", "Ib (roja)", "II (amarilla)", "III (azul)", "IV (verde)"].map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label className={etiqueta}>
-          Precio USD por unidad *
-          <input name="precio" className={entrada} inputMode="decimal" required />
+          Carencia (días)
+          <input
+            name="carenciaDias"
+            className={entrada}
+            inputMode="numeric"
+            defaultValue={inicial?.carenciaDias ?? ""}
+          />
         </label>
+        <CamposExtra campos={extras} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
         <label className={etiqueta}>
-          Principio activo
-          <input name="principioActivo" className={entrada} placeholder="Opcional" />
+          Notas
+          <textarea name="notas" rows={2} className={areaTexto} defaultValue={inicial?.notas ?? ""} />
         </label>
-      </div>
-      <p className="text-muted-foreground text-xs">La dosis se carga en la misma unidad que el precio (ej. L/ha y USD/L).</p>
-      <Pie error={error} guardando={guardando} />
+      </MasDatos>
+      {!editando && (
+        <p className="text-muted-foreground text-xs">La dosis se carga en la misma unidad que el precio (ej. L/ha y USD/L).</p>
+      )}
+      <Pie error={error} guardando={guardando} texto={editando ? "Guardar cambios" : "Guardar"} />
     </form>
   );
 }
@@ -309,7 +619,7 @@ export function FormTipoLabor({ alGuardar }: { alGuardar: AlGuardar }) {
     >
       <label className={etiqueta}>
         Nombre *
-        <input name="nombre" className={entrada} placeholder="Ej. Pulverización terrestre" required autoFocus />
+        <input name="nombre" className={entrada} placeholder="Ej. Pasada de disco" required autoFocus />
       </label>
       <label className={etiqueta}>
         Tipo *
@@ -357,27 +667,36 @@ export function FormTipoLabor({ alGuardar }: { alGuardar: AlGuardar }) {
         {cotizacion === "litros_gasoil" ? "Litros de gasoil por ha *" : "USD por ha *"}
         <input name="valor" className={entrada} inputMode="decimal" required />
       </label>
+      <p className="text-muted-foreground text-xs">Si la labor se cobra por hora, se elige al registrarla.</p>
       <Pie error={error} guardando={guardando} />
     </form>
   );
 }
 
-// ─── Aporte ─────────────────────────────────────────────────────────────────
+// ─── Elemento de una lista simple (aporte, contratista, proveedor, categoría de gasto) ──
 
-export function FormAporte({ alGuardar }: { alGuardar: AlGuardar }) {
+export function FormListaSimple({
+  lista,
+  placeholder,
+  alGuardar,
+}: {
+  lista: ListaSimple;
+  placeholder?: string;
+  alGuardar: AlGuardar;
+}) {
   const { error, guardando, enviar } = useEnvio(alGuardar);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        enviar(() => crearAporte({ nombre: String(f.get("nombre")) }));
+        enviar(() => crearEnLista(lista, { nombre: String(f.get("nombre")) }));
       }}
       className="flex flex-col gap-3"
     >
       <label className={etiqueta}>
         Nombre *
-        <input name="nombre" className={entrada} placeholder="Ej. Buatti SRL" required autoFocus />
+        <input name="nombre" className={entrada} placeholder={placeholder} required autoFocus />
       </label>
       <Pie error={error} guardando={guardando} />
     </form>
@@ -442,37 +761,109 @@ export function FormCotizacion({
 
 // ─── Botones listos para los encabezados (las páginas son de servidor) ──────
 
-export function BotonesCamposLotes({ campos }: { campos: Campo[] }) {
+export function BotonesCamposLotes({
+  campos,
+  productores,
+  personalizados,
+}: {
+  campos: Campo[];
+  productores?: Productor[];
+  personalizados?: CampoPersonalizado[];
+}) {
   return (
     <>
       <BotonAlta
         texto="+ Campo"
         titulo="Nuevo campo"
         variante="secundario"
-        formulario={(listo) => <FormCampo alGuardar={listo} />}
+        formulario={(listo) => (
+          <FormCampo productores={productores} personalizados={personalizados} alGuardar={listo} />
+        )}
       />
       <BotonAlta
         texto="+ Lote"
         titulo="Nuevo lote"
-        formulario={(listo) => <FormLote campos={campos} alGuardar={listo} />}
+        formulario={(listo) => <FormLote campos={campos} personalizados={personalizados} alGuardar={listo} />}
       />
     </>
   );
 }
 
-export function BotonEditarLote({ campos, lote }: { campos: Campo[]; lote: ValoresLote & { id: number } }) {
+export function BotonEditarLote({
+  campos,
+  lote,
+  personalizados,
+}: {
+  campos: Campo[];
+  lote: Lote;
+  personalizados?: CampoPersonalizado[];
+}) {
   return (
     <BotonAlta
       texto="Editar"
       titulo="Editar lote"
       variante="secundario"
-      formulario={(listo) => <FormLote campos={campos} inicial={lote} loteId={lote.id} alGuardar={listo} />}
+      formulario={(listo) => (
+        <FormLote campos={campos} personalizados={personalizados} inicial={lote} loteId={lote.id} alGuardar={listo} />
+      )}
     />
   );
 }
 
-export function BotonNuevoInsumo() {
-  return <BotonAlta texto="+ Insumo" titulo="Nuevo insumo" formulario={(listo) => <FormProducto alGuardar={listo} />} />;
+export function BotonEditarCampo({
+  campo,
+  productores,
+  personalizados,
+}: {
+  campo: Campo;
+  productores?: Productor[];
+  personalizados?: CampoPersonalizado[];
+}) {
+  return (
+    <BotonAlta
+      texto="Editar"
+      titulo="Editar campo"
+      variante="secundario"
+      formulario={(listo) => (
+        <FormCampo
+          productores={productores}
+          personalizados={personalizados}
+          inicial={campo}
+          campoId={campo.id}
+          alGuardar={listo}
+        />
+      )}
+    />
+  );
+}
+
+export function BotonProductor({ productor }: { productor?: Productor }) {
+  return (
+    <BotonAlta
+      texto={productor ? "Editar" : "+ Productor"}
+      titulo={productor ? "Editar productor" : "Nuevo productor"}
+      variante={productor ? "secundario" : "primario"}
+      formulario={(listo) => <FormProductor inicial={productor} productorId={productor?.id} alGuardar={listo} />}
+    />
+  );
+}
+
+export function BotonNuevoInsumo({
+  proveedores,
+  personalizados,
+}: {
+  proveedores?: Catalogo[];
+  personalizados?: CampoPersonalizado[];
+}) {
+  return (
+    <BotonAlta
+      texto="+ Insumo"
+      titulo="Nuevo insumo"
+      formulario={(listo) => (
+        <FormProducto proveedores={proveedores} personalizados={personalizados} alGuardar={listo} />
+      )}
+    />
+  );
 }
 
 export function BotonNuevaLabor() {

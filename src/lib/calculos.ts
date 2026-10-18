@@ -6,10 +6,16 @@ export function tarifaUsdHa(tipo: TipoLabor, cotizacion: Datos["cotizacion"]) {
   return ((tipo.litrosGasoilHa ?? 0) * cotizacion.precioGasoil) / cotizacion.tipoCambio;
 }
 
-/** Costos de una labor: insumos (dosis × precio × ha) + labor (costo/ha × ha). */
-export function costoLabor(labor: Pick<Labor, "ha" | "costoLaborHa" | "insumos">) {
+/**
+ * Costos de una labor: insumos (dosis × precio × ha) + trabajo, que se cobra
+ * por hectárea (costo/ha × ha) o por hora (horas × costo/hora).
+ */
+export function costoLabor(
+  labor: Pick<Labor, "ha" | "costoLaborHa" | "insumos" | "cobro" | "horas" | "costoHora">,
+) {
   const insumos = labor.insumos.reduce((total, i) => total + i.dosis * i.precio * labor.ha, 0);
-  const trabajo = labor.costoLaborHa * labor.ha;
+  const trabajo =
+    labor.cobro === "hora" ? (labor.horas ?? 0) * (labor.costoHora ?? 0) : labor.costoLaborHa * labor.ha;
   return { insumos, trabajo, total: insumos + trabajo };
 }
 
@@ -21,7 +27,7 @@ export function costoLabor(labor: Pick<Labor, "ha" | "costoLaborHa" | "insumos">
 export function margenBruto(
   ha: number,
   cosecha: Cosecha,
-  costos: { insumos: number; labores: number; cosecha: number },
+  costos: { insumos: number; labores: number; cosecha: number; otros: number },
 ) {
   const tnBrutas = (cosecha.rindeKgHa * ha) / 1000;
   const tnArrendamiento = tnBrutas * (cosecha.arrendamientoPorcentaje ?? 0);
@@ -30,7 +36,7 @@ export function margenBruto(
   const comercializacion = ingresoBruto * cosecha.gastosComercializacionPorcentaje;
   const flete = tnNetas * cosecha.fleteUsdTn;
   const ingresoNeto = ingresoBruto - comercializacion - flete;
-  const costoTotal = costos.insumos + costos.labores + costos.cosecha;
+  const costoTotal = costos.insumos + costos.labores + costos.cosecha + costos.otros;
   const margen = ingresoNeto - costoTotal;
   return {
     tnBrutas,

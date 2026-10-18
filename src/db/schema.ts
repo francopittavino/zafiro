@@ -20,6 +20,8 @@ import {
   index,
   uniqueIndex,
   check,
+  jsonb,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { multiPoligono } from "./postgis";
@@ -79,6 +81,37 @@ export const estadoRecetaEnum = pgEnum("estado_receta", [
   "anulada",
 ]);
 
+export const tenenciaEnum = pgEnum("tenencia", ["propio", "alquilado"]);
+
+/** Quién hace la labor: máquinas propias o un contratista. */
+export const modalidadLaborEnum = pgEnum("modalidad_labor", ["propia", "contratista"]);
+
+/** Cómo se cobra la labor: por hectárea o por hora. */
+export const cobroLaborEnum = pgEnum("cobro_labor", ["ha", "hora"]);
+
+/** Movimientos de stock de un campo: ingreso (compra), aplicación (sale sola al cargar una labor) o ajuste. */
+export const tipoMovimientoStockEnum = pgEnum("tipo_movimiento_stock", ["ingreso", "aplicacion", "ajuste"]);
+
+/** Qué cosas aceptan campos personalizados (los agrega el usuario desde Ajustes). */
+export const entidadPersonalizableEnum = pgEnum("entidad_personalizable", [
+  "campo",
+  "lote",
+  "producto",
+  "labor",
+  "receta",
+]);
+
+export const tipoDatoEnum = pgEnum("tipo_dato", ["texto", "numero", "fecha"]);
+
+/** Valores de los campos personalizados: id del campo personalizado (como texto) → valor. */
+export type Extras = Record<string, string>;
+
+/**
+ * Figura dibujada sobre la foto del campo (mapa propio, sin GIS): puntos [x, y]
+ * relativos a la imagen, de 0 a 1, para que no dependa del tamaño en pantalla.
+ */
+export type Dibujo = [number, number][];
+
 // ─── Acceso (PIN único) ─────────────────────────────────────────────────────
 
 /** Sesiones abiertas con el PIN. `id` es el SHA-256 del token que va en la cookie. */
@@ -102,11 +135,33 @@ export const intentosAcceso = pgTable(
 
 // ─── Estructura: campos, lotes, campañas ────────────────────────────────────
 
+/**
+ * Productores a los que asesora el ingeniero. No usan el sistema: reciben los
+ * informes y recetas en PDF.
+ */
+export const productores = pgTable("productores", {
+  id: id(),
+  nombre: text().notNull().unique(),
+  cuit: text(),
+  telefono: text(),
+  email: text(),
+  localidad: text(),
+  notas: text(),
+  activo: boolean().notNull().default(true),
+  creadoEn: creadoEn(),
+});
+
 export const campos = pgTable("campos", {
   id: id(),
   nombre: text().notNull().unique(),
+  productorId: integer().references(() => productores.id),
   localidad: text(),
   provincia: text(),
+  latitud: numeric({ precision: 9, scale: 6 }),
+  longitud: numeric({ precision: 9, scale: 6 }),
+  /** Foto aérea o captura del campo sobre la que se marcan los lotes (ver `Dibujo`). */
+  fotoMapaId: integer().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
+  extras: jsonb().$type<Extras>(),
   notas: text(),
   creadoEn: creadoEn(),
 });
@@ -124,6 +179,13 @@ export const lotes = pgTable(
     superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
     /** Contorno importado de Google Earth (KML/KMZ). */
     contorno: multiPoligono(),
+    /** Contorno marcado sobre la foto del campo (`campos.fotoMapaId`). */
+    dibujo: jsonb().$type<Dibujo>(),
+    tenencia: tenenciaEnum(),
+    tipoSuelo: text(),
+    latitud: numeric({ precision: 9, scale: 6 }),
+    longitud: numeric({ precision: 9, scale: 6 }),
+    extras: jsonb().$type<Extras>(),
     activo: boolean().notNull().default(true),
     notas: text(),
     creadoEn: creadoEn(),
@@ -233,6 +295,9 @@ export const productos = pgTable("productos", {
   unidad: unidadEnum().notNull(),
   bandaToxicologica: text(),
   carenciaDias: integer(),
+  /** Ej. "Bidón 20 L". */
+  presentacion: text(),
+  extras: jsonb().$type<Extras>(),
   activo: boolean().notNull().default(true),
   notas: text(),
   creadoEn: creadoEn(),
@@ -273,17 +338,33 @@ export const tiposLabor = pgTable("tipos_labor", {
 
 // ─── Recetas ────────────────────────────────────────────────────────────────
 
+/**
+ * Resumen propio de la receta fitosanitaria oficial (Entre Ríos): solo los datos
+ * necesarios para mandarle al productor en PDF. Todo opcional salvo número, fecha y lote.
+ */
 export const recetas = pgTable(
   "recetas",
   {
     id: id(),
+    /** Correlativo. */
     numero: integer().notNull(),
     fecha: date().notNull(),
     cicloId: integer()
       .notNull()
       .references(() => ciclos.id),
+    /** Número de la receta oficial de la provincia, si la hay. */
+    numeroOficial: text(),
+    superficieHa: numeric({ precision: 10, scale: 2 }),
     plagaObjetivo: text(),
+    /** Ej. "Terrestre", "Aérea", "Dron". */
+    tipoAplicacion: text(),
+    caudalLHa: numeric({ precision: 10, scale: 2 }),
+    fechaAplicacionPrevista: date(),
+    /** Condiciones climáticas y distancias a zonas urbanas o cursos de agua. */
+    condiciones: text(),
     recomendaciones: text(),
+    observaciones: text(),
+    extras: jsonb().$type<Extras>(),
     estado: estadoRecetaEnum().notNull().default("borrador"),
     creadoEn: creadoEn(),
   },
@@ -320,13 +401,29 @@ export const labores = pgTable(
       .references(() => tiposLabor.id),
     fecha: date().notNull(),
     superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
+    modalidad: modalidadLaborEnum(),
     contratistaId: integer().references(() => contratistas.id),
     aporteId: integer().references(() => aportes.id),
+    /** Por ha: costo = costoLaborPorHa × ha. Por hora: costo = horas × costoHora. */
+    cobro: cobroLaborEnum().notNull().default("ha"),
     /** Snapshot del costo de la labor por ha (sale de la tarifa, editable). */
     costoLaborPorHa: numeric({ precision: 14, scale: 4 }),
+    horas: numeric({ precision: 10, scale: 2 }),
+    /** USD por hora. */
+    costoHora: numeric({ precision: 14, scale: 4 }),
     monedaLabor: monedaEnum(),
     /** Tipo de cambio ARS/USD usado para esta labor (a definir la fuente con el cliente). */
     tipoCambio: numeric({ precision: 14, scale: 4 }),
+    // Datos de la aplicación (todos opcionales).
+    caudalLHa: numeric({ precision: 10, scale: 2 }),
+    temperatura: numeric({ precision: 5, scale: 1 }),
+    humedad: numeric({ precision: 5, scale: 1 }),
+    vientoKmH: numeric({ precision: 5, scale: 1 }),
+    vientoDireccion: text(),
+    aplicador: text(),
+    /** Si se aplicó solo una parte (manchones): figuras marcadas sobre la foto del campo. */
+    zonas: jsonb().$type<Dibujo[]>(),
+    extras: jsonb().$type<Extras>(),
     notas: text(),
     creadoEn: creadoEn(),
   },
@@ -381,4 +478,90 @@ export const fotos = pgTable(
     // Cada foto pertenece a una sola cosa: campo, lote o labor.
     check("fotos_un_destino", sql`num_nonnulls(${t.campoId}, ${t.loteId}, ${t.laborId}) = 1`),
   ],
+);
+
+// ─── Campos personalizados ──────────────────────────────────────────────────
+
+/**
+ * Datos extra que el usuario agrega a campos, lotes, insumos, labores o recetas
+ * ("que se puedan agregar o quitar"). Los valores van en la columna `extras` de cada tabla.
+ */
+export const camposPersonalizados = pgTable(
+  "campos_personalizados",
+  {
+    id: id(),
+    entidad: entidadPersonalizableEnum().notNull(),
+    nombre: text().notNull(),
+    tipo: tipoDatoEnum().notNull().default("texto"),
+    orden: integer().notNull().default(0),
+    activo: boolean().notNull().default(true),
+    creadoEn: creadoEn(),
+  },
+  (t) => [uniqueIndex().on(t.entidad, t.nombre)],
+);
+
+// ─── Otros gastos (alquiler, flete, seguros…) ──────────────────────────────
+
+export const categoriasGasto = pgTable("categorias_gasto", {
+  id: id(),
+  nombre: text().notNull().unique(),
+  activo: boolean().notNull().default(true),
+  creadoEn: creadoEn(),
+});
+
+/**
+ * Gastos que no son labores ni insumos. Pueden ser de un lote (ciclo), de un campo
+ * entero (se reparten entre sus lotes por hectárea) o generales de la campaña.
+ */
+export const gastos = pgTable(
+  "gastos",
+  {
+    id: id(),
+    campaniaId: integer()
+      .notNull()
+      .references(() => campanias.id),
+    cicloId: integer().references(() => ciclos.id, { onDelete: "cascade" }),
+    campoId: integer().references(() => campos.id, { onDelete: "cascade" }),
+    categoriaId: integer()
+      .notNull()
+      .references(() => categoriasGasto.id),
+    fecha: date().notNull(),
+    descripcion: text(),
+    importeUsd: numeric({ precision: 14, scale: 2 }).notNull(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    index().on(t.campaniaId),
+    index().on(t.cicloId),
+    index().on(t.campoId),
+    check("gastos_un_destino", sql`num_nonnulls(${t.cicloId}, ${t.campoId}) <= 1`),
+  ],
+);
+
+// ─── Stock por campo ────────────────────────────────────────────────────────
+
+/**
+ * Stock de insumos en cada campo = suma de los movimientos. Las aplicaciones se generan
+ * solas al guardar una labor (cantidad negativa) y se borran con ella.
+ */
+export const movimientosStock = pgTable(
+  "movimientos_stock",
+  {
+    id: id(),
+    campoId: integer()
+      .notNull()
+      .references(() => campos.id),
+    productoId: integer()
+      .notNull()
+      .references(() => productos.id),
+    fecha: date().notNull(),
+    tipo: tipoMovimientoStockEnum().notNull(),
+    /** Positiva entra, negativa sale (en la unidad del producto). */
+    cantidad: numeric({ precision: 14, scale: 4 }).notNull(),
+    laborId: integer().references(() => labores.id, { onDelete: "cascade" }),
+    proveedorId: integer().references(() => proveedores.id),
+    nota: text(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [index().on(t.campoId, t.productoId), index().on(t.laborId)],
 );

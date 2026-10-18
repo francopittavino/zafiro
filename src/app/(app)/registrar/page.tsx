@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Encabezado } from "@/components/app/encabezado";
-import { obtenerDatos } from "@/lib/datos";
+import { laborDescontoStock, obtenerDatos } from "@/lib/datos";
 import { tarifaUsdHa } from "@/lib/calculos";
 import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 
@@ -29,6 +29,16 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
       aporte: origen.aporte,
       notas: modo === "editar" ? (origen.notas ?? "") : "",
       insumos: origen.insumos,
+      modalidad: origen.modalidad,
+      contratista: origen.contratista,
+      cobro: origen.cobro,
+      horas: origen.horas,
+      costoHora: origen.costoHora,
+      // Al duplicar se copia la mezcla y la forma de trabajo, no el clima ni los manchones.
+      aplicacion: modo === "editar" ? origen.aplicacion : undefined,
+      zonas: modo === "editar" ? origen.zonas : null,
+      extras: modo === "editar" ? origen.extras : null,
+      descontoStock: modo === "editar" ? await laborDescontoStock(origen.id) : true,
     };
   } else if (typeof lote === "string") {
     const elegido = datos.lotes.find((l) => l.id === Number(lote));
@@ -55,6 +65,9 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
         lotes={datos.lotes}
         productos={datos.productos}
         aportes={datos.aportes}
+        contratistas={(datos.contratistas ?? []).map((c) => c.nombre)}
+        personalizados={datos.camposPersonalizados ?? []}
+        stock={datos.stock ?? []}
         tiposLabor={datos.tiposLabor.map((t) => ({
           id: t.id,
           nombre: t.nombre,

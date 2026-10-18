@@ -1,14 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import type { Campo, InsumoAplicado, Lote, Producto } from "@/lib/datos";
+import type { Dibujo } from "@/db/schema";
+import type {
+  Campo,
+  CampoPersonalizado,
+  DatosAplicacion,
+  Existencia,
+  InsumoAplicado,
+  Lote,
+  Producto,
+} from "@/lib/datos";
 import { NOMBRE_CATEGORIA, hoyIso, leerNumero, num, numeroEditable, usd2 } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { guardarLabor } from "./acciones";
 import { Dialogo } from "@/components/app/dialogo";
-import { FormLote, FormProducto, FormTipoLabor } from "@/components/app/altas";
+import { FormLote, FormProducto, FormTipoLabor, MasDatos } from "@/components/app/altas";
+import { CamposExtra, leerExtras } from "@/components/app/campos-extra";
 
 const NUEVO = "__nuevo__";
 type Alta = "lote" | "labor" | "producto";
@@ -26,7 +36,30 @@ export type ValoresIniciales = {
   aporte?: string | null;
   notas?: string;
   insumos?: InsumoAplicado[];
+  modalidad?: "propia" | "contratista" | null;
+  contratista?: string | null;
+  cobro?: "ha" | "hora";
+  horas?: number | null;
+  costoHora?: number | null;
+  aplicacion?: DatosAplicacion;
+  zonas?: Dibujo[] | null;
+  extras?: Record<string, string> | null;
+  /** Si la labor guardada había descontado stock (al editar se mantiene). */
+  descontoStock?: boolean;
 };
+
+const SIN_APLICACION: DatosAplicacion = {
+  caudalLHa: null,
+  temperatura: null,
+  humedad: null,
+  vientoKmH: null,
+  vientoDireccion: null,
+  aplicador: null,
+};
+
+/** Número opcional de un input: vacío → null, inválido → NaN. */
+const opcional = (texto: string) => (texto.trim() ? leerNumero(texto) : null);
+const editable = (valor: number | null | undefined) => (valor == null ? "" : numeroEditable(valor));
 
 const etiqueta = "flex flex-col gap-1 text-sm font-bold";
 const entrada =
@@ -38,6 +71,9 @@ export function FormularioLabor({
   productos,
   tiposLabor,
   aportes,
+  contratistas,
+  personalizados,
+  stock,
   inicial,
   laborId,
 }: {
@@ -46,6 +82,9 @@ export function FormularioLabor({
   productos: Producto[];
   tiposLabor: TipoLaborOpcion[];
   aportes: string[];
+  contratistas: string[];
+  personalizados: CampoPersonalizado[];
+  stock: Existencia[];
   inicial?: ValoresIniciales;
   /** Si viene, el formulario edita esa labor en vez de crear una nueva. */
   laborId?: number;
@@ -75,6 +114,25 @@ export function FormularioLabor({
   const [errores, setErrores] = useState<string[]>([]);
   const [aviso, setAviso] = useState("");
   const [notas, setNotas] = useState(inicial?.notas ?? "");
+  const [modalidad, setModalidad] = useState<"propia" | "contratista" | "">(inicial?.modalidad ?? "");
+  const [contratista, setContratista] = useState(inicial?.contratista ?? "");
+  const [cobro, setCobro] = useState<"ha" | "hora">(inicial?.cobro ?? "ha");
+  const [horas, setHoras] = useState(editable(inicial?.horas));
+  const [costoHora, setCostoHora] = useState(editable(inicial?.costoHora));
+  const ap = inicial?.aplicacion ?? SIN_APLICACION;
+  const [aplicacion, setAplicacion] = useState({
+    caudalLHa: editable(ap.caudalLHa),
+    temperatura: editable(ap.temperatura),
+    humedad: editable(ap.humedad),
+    vientoKmH: editable(ap.vientoKmH),
+    vientoDireccion: ap.vientoDireccion ?? "",
+    aplicador: ap.aplicador ?? "",
+  });
+  const [descontarStock, setDescontarStock] = useState(inicial?.descontoStock ?? true);
+  // Los campos personalizados no tienen estado: se leen del formulario al guardar y se reinician cambiando la key.
+  const formulario = useRef<HTMLFormElement>(null);
+  const [vueltaExtras, setVueltaExtras] = useState(0);
+  const extrasLabor = personalizados.filter((c) => c.entidad === "labor");
   const [guardando, iniciarGuardado] = useTransition();
   // Alta en el momento (lote, labor o producto nuevo) y el registro creado a elegir.
   const [alta, setAlta] = useState<Alta | null>(null);
@@ -95,7 +153,10 @@ export function FormularioLabor({
   const haNum = leerNumero(ha) || 0;
 
   const costoInsumos = lineas.reduce((t, l) => t + (leerNumero(l.dosis) || 0) * (leerNumero(l.precio) || 0) * haNum, 0);
-  const costoTrabajo = (leerNumero(costoHa) || 0) * haNum;
+  const costoTrabajo =
+    cobro === "hora" ? (leerNumero(horas) || 0) * (leerNumero(costoHora) || 0) : (leerNumero(costoHa) || 0) * haNum;
+  const stockDe = (productoId: number) =>
+    lote ? (stock.find((s) => s.campoId === lote.campoId && s.productoId === productoId)?.cantidad ?? 0) : 0;
   const total = costoInsumos + costoTrabajo;
 
   function terminarAlta(tipo: Alta) {
@@ -145,6 +206,8 @@ export function FormularioLabor({
     setCostoHa("");
     setLineas([]);
     setNotas("");
+    setHoras("");
+    setVueltaExtras((v) => v + 1);
   }
 
   function guardar(cargarOtra: boolean) {
@@ -153,7 +216,21 @@ export function FormularioLabor({
     if (!fecha) faltan.push("Completá la fecha.");
     if (!tipo) faltan.push("Elegí la labor.");
     if (!(haNum > 0)) faltan.push("Las hectáreas tienen que ser mayores a 0.");
-    if (costoHa && Number.isNaN(leerNumero(costoHa))) faltan.push("El costo de la labor no es un número válido.");
+    if (cobro === "ha" && costoHa && Number.isNaN(leerNumero(costoHa)))
+      faltan.push("El costo de la labor no es un número válido.");
+    if (cobro === "hora" && [horas, costoHora].some((v) => v && Number.isNaN(leerNumero(v))))
+      faltan.push("Revisá las horas y el costo por hora.");
+    if (modalidad === "contratista" && !contratista.trim()) faltan.push("Escribí el contratista.");
+    const datosAplicacion = {
+      caudalLHa: opcional(aplicacion.caudalLHa),
+      temperatura: opcional(aplicacion.temperatura),
+      humedad: opcional(aplicacion.humedad),
+      vientoKmH: opcional(aplicacion.vientoKmH),
+      vientoDireccion: aplicacion.vientoDireccion || null,
+      aplicador: aplicacion.aplicador || null,
+    };
+    if (Object.values(datosAplicacion).some((v) => typeof v === "number" && Number.isNaN(v)))
+      faltan.push("Revisá los datos de la aplicación (caudal, temperatura, humedad, viento).");
     for (const l of lineas) {
       const nombre = productos.find((p) => p.id === l.productoId)?.nombre;
       if (!(leerNumero(l.dosis) > 0)) faltan.push(`Falta la dosis de ${nombre}.`);
@@ -173,9 +250,18 @@ export function FormularioLabor({
           fecha,
           tipoLaborId: tipo!.id,
           ha: haNum,
+          modalidad: modalidad || null,
+          contratista: modalidad === "contratista" ? contratista : null,
+          cobro,
           costoLaborHa: costoHa ? leerNumero(costoHa) : null,
+          horas: horas ? leerNumero(horas) : null,
+          costoHora: costoHora ? leerNumero(costoHora) : null,
           aporte: aporte || null,
           notas: notas || null,
+          aplicacion: datosAplicacion,
+          zonas: inicial?.zonas ?? null,
+          extras: formulario.current ? leerExtras(new FormData(formulario.current)) : {},
+          descontarStock,
           insumos: lineas.map((l) => ({
             productoId: l.productoId,
             dosis: leerNumero(l.dosis),
@@ -202,6 +288,7 @@ export function FormularioLabor({
   return (
     <>
       <form
+        ref={formulario}
         onSubmit={(e) => {
           e.preventDefault();
           guardar(false);
@@ -295,6 +382,20 @@ export function FormularioLabor({
                 <span className="text-muted-foreground text-xs font-normal">Del lote: {num(lote.ha)} ha</span>
               )}
             </label>
+            <fieldset className="flex flex-col gap-1">
+              <legend className="mb-1 text-sm font-bold">Se cobra</legend>
+              <Opciones
+                opciones={[
+                  ["ha", "Por ha"],
+                  ["hora", "Por hora"],
+                ]}
+                valor={cobro}
+                alCambiar={setCobro}
+              />
+            </fieldset>
+          </div>
+
+          {cobro === "ha" ? (
             <label className={etiqueta}>
               Costo labor USD/ha
               <input
@@ -304,7 +405,53 @@ export function FormularioLabor({
                 onChange={(e) => setCostoHa(e.target.value)}
               />
             </label>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <label className={etiqueta}>
+                Horas
+                <input className={entrada} inputMode="decimal" value={horas} onChange={(e) => setHoras(e.target.value)} />
+              </label>
+              <label className={etiqueta}>
+                USD por hora
+                <input
+                  className={entrada}
+                  inputMode="decimal"
+                  value={costoHora}
+                  onChange={(e) => setCostoHora(e.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
+          <fieldset className="flex flex-col gap-1">
+            <legend className="mb-1 text-sm font-bold">¿Quién la hizo?</legend>
+            <Opciones
+              opciones={[
+                ["", "Sin dato"],
+                ["propia", "Máquina propia"],
+                ["contratista", "Contratista"],
+              ]}
+              valor={modalidad}
+              alCambiar={setModalidad}
+            />
+          </fieldset>
+          {modalidad === "contratista" && (
+            <label className={etiqueta}>
+              Contratista *
+              <input
+                className={entrada}
+                list="contratistas"
+                value={contratista}
+                onChange={(e) => setContratista(e.target.value)}
+                placeholder="Elegí o escribí uno nuevo"
+              />
+              <datalist id="contratistas">
+                {contratistas.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </label>
+          )}
 
           <label className={etiqueta}>
             Aporte
@@ -332,6 +479,50 @@ export function FormularioLabor({
               className="bg-card border-input focus:border-ring rounded-lg border p-3 font-normal outline-none"
             />
           </label>
+
+          <MasDatos abierto={Boolean(inicial?.aplicacion && Object.values(inicial.aplicacion).some((v) => v !== null))}>
+            <p className="text-muted-foreground -mt-1 text-xs">Datos de la aplicación</p>
+            <div className="grid grid-cols-2 gap-3">
+              {(
+                [
+                  ["caudalLHa", "Caudal (L/ha)"],
+                  ["temperatura", "Temperatura (°C)"],
+                  ["humedad", "Humedad (%)"],
+                  ["vientoKmH", "Viento (km/h)"],
+                ] as const
+              ).map(([clave, texto]) => (
+                <label key={clave} className={etiqueta}>
+                  {texto}
+                  <input
+                    className={entrada}
+                    inputMode="decimal"
+                    value={aplicacion[clave]}
+                    onChange={(e) => setAplicacion({ ...aplicacion, [clave]: e.target.value })}
+                  />
+                </label>
+              ))}
+              <label className={etiqueta}>
+                Dirección del viento
+                <input
+                  className={entrada}
+                  value={aplicacion.vientoDireccion}
+                  onChange={(e) => setAplicacion({ ...aplicacion, vientoDireccion: e.target.value })}
+                  placeholder="Ej. NE"
+                />
+              </label>
+              <label className={etiqueta}>
+                Aplicador
+                <input
+                  className={entrada}
+                  value={aplicacion.aplicador}
+                  onChange={(e) => setAplicacion({ ...aplicacion, aplicador: e.target.value })}
+                />
+              </label>
+            </div>
+            <div key={vueltaExtras} className="flex flex-col gap-3">
+              <CamposExtra campos={extrasLabor} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
+            </div>
+          </MasDatos>
         </section>
 
         <section className="flex flex-col gap-2">
@@ -388,6 +579,9 @@ export function FormularioLabor({
                     <span className="text-foreground block text-base font-bold tabular-nums">{usd2(totalLinea)}</span>
                   </p>
                 </div>
+                {lote && descontarStock && (
+                  <StockLinea disponible={stockDe(p.id)} usa={(leerNumero(l.dosis) || 0) * haNum} unidad={p.unidad} />
+                )}
               </div>
             );
           })}
@@ -416,6 +610,18 @@ export function FormularioLabor({
               <option value={NUEVO}>+ Nuevo insumo (no está en la lista)…</option>
             </select>
           </label>
+
+          {lineas.length > 0 && (
+            <label className="flex items-center gap-2 px-1 text-sm">
+              <input
+                type="checkbox"
+                checked={descontarStock}
+                onChange={(e) => setDescontarStock(e.target.checked)}
+                className="size-5"
+              />
+              Descontar los productos del stock del campo
+            </label>
+          )}
         </section>
 
         <footer className="bg-card fixed inset-x-0 bottom-0 z-30 flex flex-col gap-3 border-t px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] md:left-60 md:flex-row md:items-center md:justify-end md:gap-6 md:px-8">
@@ -460,14 +666,55 @@ export function FormularioLabor({
 
       {/* Altas en el momento: fuera del <form> porque un formulario no puede ir dentro de otro. */}
       <Dialogo abierto={alta === "lote"} alCerrar={() => setAlta(null)} titulo="Nuevo lote">
-        <FormLote campos={campos} alGuardar={terminarAlta("lote")} />
+        <FormLote campos={campos} personalizados={personalizados} alGuardar={terminarAlta("lote")} />
       </Dialogo>
       <Dialogo abierto={alta === "labor"} alCerrar={() => setAlta(null)} titulo="Nuevo tipo de labor">
         <FormTipoLabor alGuardar={terminarAlta("labor")} />
       </Dialogo>
       <Dialogo abierto={alta === "producto"} alCerrar={() => setAlta(null)} titulo="Nuevo insumo">
-        <FormProducto alGuardar={terminarAlta("producto")} />
+        <FormProducto personalizados={personalizados} alGuardar={terminarAlta("producto")} />
       </Dialogo>
     </>
+  );
+}
+
+/** Botones de opción (radio) con el mismo estilo que el resto de los formularios. */
+function Opciones<T extends string>({
+  opciones,
+  valor,
+  alCambiar,
+}: {
+  opciones: [T, string][];
+  valor: T;
+  alCambiar: (valor: T) => void;
+}) {
+  return (
+    <div className="flex gap-1 rounded-lg border p-1">
+      {opciones.map(([v, texto]) => (
+        <button
+          key={v || "nada"}
+          type="button"
+          aria-pressed={valor === v}
+          onClick={() => alCambiar(v)}
+          className={cn(
+            "h-9 flex-1 rounded-md px-2 text-sm font-bold",
+            valor === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+          )}
+        >
+          {texto}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StockLinea({ disponible, usa, unidad }: { disponible: number; usa: number; unidad: string }) {
+  const queda = disponible - usa;
+  return (
+    <p className={cn("text-xs", queda < 0 ? "text-destructive" : "text-muted-foreground")}>
+      Stock en el campo: {num(disponible)} {unidad}
+      {usa > 0 && ` · quedan ${num(queda)} ${unidad}`}
+      {queda < 0 && " (no alcanza: queda en negativo)"}
+    </p>
   );
 }

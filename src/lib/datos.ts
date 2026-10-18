@@ -2,26 +2,36 @@ import "server-only";
 import { cache } from "react";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   aportes,
   campanias,
   campos,
+  camposPersonalizados,
+  categoriasGasto,
   ciclos,
+  contratistas,
   cotizaciones,
+  gastos,
   laborInsumos,
   labores,
   lotes,
+  movimientosStock,
   preciosProducto,
+  productores,
   productos,
+  proveedores,
   tiposLabor,
+  type Dibujo,
+  type Extras,
 } from "@/db/schema";
 import { modoDemo } from "./modo-demo";
 
 /**
  * Datos de la campaña actual, ya convertidos a números para las pantallas.
  * Salen de la base; en modo demo, de `datos-demo/zafiro.json` (ver scripts/importar-planilla.py).
+ * Los campos opcionales (`?`) no están en el JSON del modo demo.
  */
 
 export type Categoria =
@@ -44,8 +54,29 @@ export type CategoriaLabor =
   | "cosecha"
   | "laboreo"
   | "otra";
+export type EntidadPersonalizable = "campo" | "lote" | "producto" | "labor" | "receta";
 
-export type Campo = { id: number; nombre: string };
+export type Productor = {
+  id: number;
+  nombre: string;
+  cuit: string | null;
+  telefono: string | null;
+  email: string | null;
+  localidad: string | null;
+  notas: string | null;
+};
+export type Campo = {
+  id: number;
+  nombre: string;
+  productorId?: number | null;
+  localidad?: string | null;
+  provincia?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  fotoMapaId?: number | null;
+  extras?: Extras | null;
+  notas?: string | null;
+};
 export type Lote = {
   id: number;
   campoId: number;
@@ -53,6 +84,15 @@ export type Lote = {
   nombre: string;
   ha: number;
   cultivo: string;
+  variedad?: string | null;
+  fechaSiembra?: string | null;
+  tenencia?: "propio" | "alquilado" | null;
+  tipoSuelo?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  dibujo?: Dibujo | null;
+  extras?: Extras | null;
+  notas?: string | null;
 };
 export type Producto = {
   id: number;
@@ -60,6 +100,14 @@ export type Producto = {
   categoria: Categoria;
   unidad: Unidad;
   precio: number;
+  principioActivo?: string | null;
+  concentracion?: string | null;
+  formulacion?: string | null;
+  presentacion?: string | null;
+  bandaToxicologica?: string | null;
+  carenciaDias?: number | null;
+  extras?: Extras | null;
+  notas?: string | null;
 };
 export type TipoLabor = {
   id: number;
@@ -70,6 +118,14 @@ export type TipoLabor = {
   costoUsdHa: number | null;
 };
 export type InsumoAplicado = { productoId: number; dosis: number; precio: number };
+export type DatosAplicacion = {
+  caudalLHa: number | null;
+  temperatura: number | null;
+  humedad: number | null;
+  vientoKmH: number | null;
+  vientoDireccion: string | null;
+  aplicador: string | null;
+};
 export type Labor = {
   id: number;
   loteId: number;
@@ -80,6 +136,14 @@ export type Labor = {
   aporte: string | null;
   notas?: string | null;
   insumos: InsumoAplicado[];
+  modalidad?: "propia" | "contratista" | null;
+  contratista?: string | null;
+  cobro?: "ha" | "hora";
+  horas?: number | null;
+  costoHora?: number | null;
+  aplicacion?: DatosAplicacion;
+  zonas?: Dibujo[] | null;
+  extras?: Extras | null;
 };
 export type Cosecha = {
   loteId: number;
@@ -90,16 +154,44 @@ export type Cosecha = {
   gastosComercializacionPorcentaje: number;
   fleteUsdTn: number;
 };
+/** Gasto que no es labor ni insumo: de un lote, de un campo entero o general de la campaña. */
+export type Gasto = {
+  id: number;
+  loteId: number | null;
+  campoId: number | null;
+  categoriaId: number;
+  categoria: string;
+  fecha: string;
+  descripcion: string | null;
+  importe: number;
+};
+export type CampoPersonalizado = {
+  id: number;
+  entidad: EntidadPersonalizable;
+  nombre: string;
+  tipo: "texto" | "numero" | "fecha";
+};
+export type Catalogo = { id: number; nombre: string };
+/** Existencia de un insumo en un campo (suma de movimientos). */
+export type Existencia = { campoId: number; productoId: number; cantidad: number };
+
 export type Datos = {
   campania: string;
   cotizacion: { tipoCambio: number; precioGasoil: number };
+  productores?: Productor[];
   campos: Campo[];
   lotes: Lote[];
   productos: Producto[];
   tiposLabor: TipoLabor[];
   aportes: string[];
+  contratistas?: Catalogo[];
+  proveedores?: Catalogo[];
+  categoriasGasto?: Catalogo[];
+  camposPersonalizados?: CampoPersonalizado[];
   labores: Labor[];
   cosechas: Cosecha[];
+  gastos?: Gasto[];
+  stock?: Existencia[];
 };
 
 const VACIO: Datos = {
@@ -136,6 +228,7 @@ async function datosDeLaBase(): Promise<Datos> {
   if (!campania) return VACIO;
 
   const [
+    filasProductores,
     filasCampos,
     filasLotes,
     filasCiclos,
@@ -143,10 +236,17 @@ async function datosDeLaBase(): Promise<Datos> {
     filasPrecios,
     filasTipos,
     filasAportes,
+    filasContratistas,
+    filasProveedores,
+    filasCategorias,
+    filasPersonalizados,
     [cotizacion],
     filasLabores,
     filasInsumos,
+    filasGastos,
+    filasStock,
   ] = await Promise.all([
+    db.select().from(productores).where(eq(productores.activo, true)).orderBy(productores.nombre),
     db.select().from(campos).orderBy(campos.nombre),
     db.select().from(lotes).where(eq(lotes.activo, true)).orderBy(lotes.codigo),
     db.select().from(ciclos).where(eq(ciclos.campaniaId, campania.id)),
@@ -161,12 +261,25 @@ async function datosDeLaBase(): Promise<Datos> {
       .orderBy(preciosProducto.productoId, desc(preciosProducto.fecha), desc(preciosProducto.id)),
     db.select().from(tiposLabor).where(eq(tiposLabor.activo, true)).orderBy(tiposLabor.id),
     db.select().from(aportes).where(eq(aportes.activo, true)).orderBy(aportes.id),
+    db.select({ id: contratistas.id, nombre: contratistas.nombre }).from(contratistas).orderBy(contratistas.nombre),
+    db.select({ id: proveedores.id, nombre: proveedores.nombre }).from(proveedores).orderBy(proveedores.nombre),
+    db
+      .select({ id: categoriasGasto.id, nombre: categoriasGasto.nombre })
+      .from(categoriasGasto)
+      .where(eq(categoriasGasto.activo, true))
+      .orderBy(categoriasGasto.id),
+    db
+      .select()
+      .from(camposPersonalizados)
+      .where(eq(camposPersonalizados.activo, true))
+      .orderBy(camposPersonalizados.orden, camposPersonalizados.id),
     db.select().from(cotizaciones).orderBy(desc(cotizaciones.fecha)).limit(1),
     db
-      .select({ labor: labores, loteId: ciclos.loteId, aporte: aportes.nombre })
+      .select({ labor: labores, loteId: ciclos.loteId, aporte: aportes.nombre, contratista: contratistas.nombre })
       .from(labores)
       .innerJoin(ciclos, eq(labores.cicloId, ciclos.id))
       .leftJoin(aportes, eq(labores.aporteId, aportes.id))
+      .leftJoin(contratistas, eq(labores.contratistaId, contratistas.id))
       .where(eq(ciclos.campaniaId, campania.id))
       .orderBy(desc(labores.fecha), desc(labores.id)),
     db
@@ -181,15 +294,26 @@ async function datosDeLaBase(): Promise<Datos> {
       .innerJoin(ciclos, eq(labores.cicloId, ciclos.id))
       .where(eq(ciclos.campaniaId, campania.id))
       .orderBy(laborInsumos.id),
+    db
+      .select({ gasto: gastos, loteId: ciclos.loteId, categoria: categoriasGasto.nombre })
+      .from(gastos)
+      .innerJoin(categoriasGasto, eq(gastos.categoriaId, categoriasGasto.id))
+      .leftJoin(ciclos, eq(gastos.cicloId, ciclos.id))
+      .where(eq(gastos.campaniaId, campania.id))
+      .orderBy(desc(gastos.fecha), desc(gastos.id)),
+    // El stock no depende de la campaña: es lo que hay hoy en cada campo.
+    db
+      .select({
+        campoId: movimientosStock.campoId,
+        productoId: movimientosStock.productoId,
+        cantidad: sql<string>`sum(${movimientosStock.cantidad})`,
+      })
+      .from(movimientosStock)
+      .groupBy(movimientosStock.campoId, movimientosStock.productoId),
   ]);
 
   const precios = new Map(filasPrecios.map((p) => [p.productoId, Number(p.precio)]));
-  // Cuando haya fina y gruesa en el mismo lote, se muestran los dos cultivos juntos.
-  const cultivoDeLote = (loteId: number) =>
-    filasCiclos
-      .filter((c) => c.loteId === loteId)
-      .map((c) => c.cultivo)
-      .join("/");
+  const ciclosDeLote = (loteId: number) => filasCiclos.filter((c) => c.loteId === loteId);
 
   return {
     campania: campania.nombre,
@@ -197,21 +321,62 @@ async function datosDeLaBase(): Promise<Datos> {
       tipoCambio: cotizacion ? Number(cotizacion.tipoCambio) : 1,
       precioGasoil: cotizacion ? Number(cotizacion.precioGasoil) : 0,
     },
-    campos: filasCampos.map((c) => ({ id: c.id, nombre: c.nombre })),
-    lotes: filasLotes.map((l) => ({
-      id: l.id,
-      campoId: l.campoId,
-      codigo: l.codigo ?? "",
-      nombre: l.nombre,
-      ha: Number(l.superficieHa),
-      cultivo: cultivoDeLote(l.id),
+    productores: filasProductores.map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      cuit: p.cuit,
+      telefono: p.telefono,
+      email: p.email,
+      localidad: p.localidad,
+      notas: p.notas,
     })),
+    campos: filasCampos.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      productorId: c.productorId,
+      localidad: c.localidad,
+      provincia: c.provincia,
+      latitud: n(c.latitud),
+      longitud: n(c.longitud),
+      fotoMapaId: c.fotoMapaId,
+      extras: c.extras,
+      notas: c.notas,
+    })),
+    lotes: filasLotes.map((l) => {
+      const delLote = ciclosDeLote(l.id);
+      return {
+        id: l.id,
+        campoId: l.campoId,
+        codigo: l.codigo ?? "",
+        nombre: l.nombre,
+        ha: Number(l.superficieHa),
+        // Cuando haya fina y gruesa en el mismo lote, se muestran los dos cultivos juntos.
+        cultivo: delLote.map((c) => c.cultivo).join("/"),
+        variedad: delLote.map((c) => c.variedad).filter(Boolean).join("/") || null,
+        fechaSiembra: delLote.find((c) => c.fechaSiembra)?.fechaSiembra ?? null,
+        tenencia: l.tenencia,
+        tipoSuelo: l.tipoSuelo,
+        latitud: n(l.latitud),
+        longitud: n(l.longitud),
+        dibujo: l.dibujo,
+        extras: l.extras,
+        notas: l.notas,
+      };
+    }),
     productos: filasProductos.map((p) => ({
       id: p.id,
       nombre: p.nombreComercial,
       categoria: p.categoria,
       unidad: p.unidad,
       precio: precios.get(p.id) ?? 0,
+      principioActivo: p.principioActivo,
+      concentracion: p.concentracion,
+      formulacion: p.formulacion,
+      presentacion: p.presentacion,
+      bandaToxicologica: p.bandaToxicologica,
+      carenciaDias: p.carenciaDias,
+      extras: p.extras,
+      notas: p.notas,
     })),
     tiposLabor: filasTipos.map((t) => ({
       id: t.id,
@@ -222,7 +387,16 @@ async function datosDeLaBase(): Promise<Datos> {
       costoUsdHa: n(t.costoUsdHa),
     })),
     aportes: filasAportes.map((a) => a.nombre),
-    labores: filasLabores.map(({ labor, loteId, aporte }) => ({
+    contratistas: filasContratistas,
+    proveedores: filasProveedores,
+    categoriasGasto: filasCategorias,
+    camposPersonalizados: filasPersonalizados.map((c) => ({
+      id: c.id,
+      entidad: c.entidad,
+      nombre: c.nombre,
+      tipo: c.tipo,
+    })),
+    labores: filasLabores.map(({ labor, loteId, aporte, contratista }) => ({
       id: labor.id,
       loteId,
       fecha: labor.fecha,
@@ -234,6 +408,21 @@ async function datosDeLaBase(): Promise<Datos> {
       insumos: filasInsumos
         .filter((i) => i.laborId === labor.id)
         .map((i) => ({ productoId: i.productoId, dosis: Number(i.dosis), precio: Number(i.precio) })),
+      modalidad: labor.modalidad,
+      contratista,
+      cobro: labor.cobro,
+      horas: n(labor.horas),
+      costoHora: n(labor.costoHora),
+      aplicacion: {
+        caudalLHa: n(labor.caudalLHa),
+        temperatura: n(labor.temperatura),
+        humedad: n(labor.humedad),
+        vientoKmH: n(labor.vientoKmH),
+        vientoDireccion: labor.vientoDireccion,
+        aplicador: labor.aplicador,
+      },
+      zonas: labor.zonas,
+      extras: labor.extras,
     })),
     cosechas: filasCiclos
       .filter((c) => c.rindeKgHa !== null && c.precioPizarra !== null)
@@ -246,12 +435,34 @@ async function datosDeLaBase(): Promise<Datos> {
         gastosComercializacionPorcentaje: Number(c.gastosComercializacionPorcentaje ?? 0),
         fleteUsdTn: Number(c.fleteUsdTn ?? 0),
       })),
+    gastos: filasGastos.map(({ gasto, loteId, categoria }) => ({
+      id: gasto.id,
+      loteId,
+      campoId: gasto.campoId,
+      categoriaId: gasto.categoriaId,
+      categoria,
+      fecha: gasto.fecha,
+      descripcion: gasto.descripcion,
+      importe: Number(gasto.importeUsd),
+    })),
+    stock: filasStock.map((s) => ({ campoId: s.campoId, productoId: s.productoId, cantidad: Number(s.cantidad) })),
   };
 }
 
 export const obtenerDatos = cache(async (): Promise<Datos> =>
   modoDemo() ? datosDemo() : datosDeLaBase(),
 );
+
+/** Si la labor descontó sus productos del stock (para respetarlo al editarla). */
+export async function laborDescontoStock(laborId: number) {
+  if (modoDemo()) return false;
+  const [fila] = await db
+    .select({ id: movimientosStock.id })
+    .from(movimientosStock)
+    .where(eq(movimientosStock.laborId, laborId))
+    .limit(1);
+  return Boolean(fila);
+}
 
 export type PrecioHistorico = { fecha: string | null; precio: number };
 
