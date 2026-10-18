@@ -6,7 +6,7 @@
 ## 1. Contexto del proyecto
 
 - **Qué es:** sistema de gestión agronómica a medida para un cliente (ingeniero agrónomo / productor, Argentina).
-- **Estado:** el cliente respondió el cuestionario (`docs/Respuesta cliente.pdf`, ver 1.1). Se implementó todo lo que pidió (bitácora 2026-10-17); **falta aplicar la migración 0006 y probar contra la base**.
+- **Estado:** implementado lo que pidió el cliente (2026-10-17) y los pedidos del dev del 2026-10-18 (campañas por cultivo con cierre, receta oficial en PDF, mapa en las altas, PDF de labor, inicio simple). Migraciones hasta la **0007 aplicadas**; producción andando. **Falta borrar los trabajos de prueba** (`npm run db:borrar-trabajos -- --confirmar`) para que el ingeniero cargue todo de cero.
 - **Lo que dijo el cliente en el audio:**
   - Ya tiene una "base de datos" (formato desconocido).
   - Trabaja varios campos en distintas localidades; los lotes los dibuja/descarga desde Google Earth (ubicación, lotes).
@@ -49,10 +49,11 @@
 | `CLAUDE.md` | Instrucciones para Claude Code (stack, comandos, convenciones); se carga solo en cada sesión |
 | `.claude/skills/open-session`, `close-session` | Skills de inicio (pull + contexto) y cierre (actualizar este doc + commit + push) |
 | `src/db/schema.ts` | Esquema de base de datos (Drizzle) |
-| `drizzle/` | Migraciones SQL generadas (0005 incluye el bucket de fotos) |
+| `drizzle/` | Migraciones SQL generadas (0005 crea el bucket `fotos`; 0007 el bucket `documentos` y el estado del cultivo) |
+| `scripts/borrar-trabajos.mjs` | `npm run db:borrar-trabajos`: borra labores, recetas, gastos, stock y cultivos de prueba (sin `--confirmar` solo muestra qué borraría) |
 | `scripts/importar-planilla.py` · `scripts/cargar-datos.mjs` | Planilla `.xlsm` → `datos-demo/zafiro.json` → base (`npm run db:cargar`). Los datos no se versionan |
 | `public/marca/` | Logo, isotipo e ícono del cliente (sacados de `Logo.jpeg`); `logo-pdf.png` es la versión liviana para los PDF |
-| `src/pdf/` | PDF con la marca Zafiro (`@react-pdf/renderer`): receta e informe de campaña |
+| `src/pdf/` | PDF con la marca Zafiro (`@react-pdf/renderer`): receta, informe (en curso, campaña o cierre de un cultivo) y labor; `mapa.tsx` (mapa con el lote resaltado), `unir.ts` (pega la receta oficial con `pdf-lib`) |
 | Lienzo de diseño | https://claude.ai/artifact/DYoqmYLc8zvf2bMrC9jhou (primeras pantallas, paleta provisoria; la app ya usa la del logo) |
 
 ## 3. Modelo de dominio preliminar (a validar con el cliente)
@@ -60,11 +61,13 @@
 ```
 Productor (al que asesora) ─┬─ Campo (localidad, coordenadas, foto del mapa) ── Fotos · Stock (movimientos)
                    │     └─ Lote (código, ha, tenencia, suelo, dibujo sobre la foto) ── Fotos
-                   │           └─ Ciclo/Campaña (cultivo, variedad, siembra; cosecha: rinde, pizarra, arrendamiento, gastos, flete)
+                   │           └─ Ciclo = cultivo en una campaña (en curso → cerrado a mano; uno solo en curso por lote;
+                   │                 variedad, siembra; cosecha: rinde, pizarra, arrendamiento, gastos, flete)
                    │                 ├─ Labor (tipo, fecha, ha, propia/contratista, cobro por ha u hora, aplicación, manchones)
                    │                 └─ Gasto (alquiler, flete, seguro…; también por campo o general)
                    │                       └─ LaborInsumo (producto, dosis/ha, cantidad, precio al momento)
-                   └─ Receta (nº correlativo, lote, objetivo, productos, condiciones) → PDF
+                   └─ Receta (nº correlativo, ciclo, objetivo, productos, condiciones, PDF oficial) → PDF (+ oficial)
+                         (una Labor puede vincular la Receta con la que se hizo)
 Producto (nombre, categoría, unidad, principio activo) ── PrecioProducto (proveedor, moneda, precio, fecha)
 TipoLabor (nombre, categoría, tarifa en L de gasoil/ha o USD/ha) · Cotización (fecha, tipo de cambio, gasoil) · Aporte
 CampoPersonalizado (dato extra de campo/lote/insumo/labor/receta; valores en la columna `extras`)
@@ -168,10 +171,12 @@ Principios ya acordados como recomendación:
 
 ### Técnicas (pendientes)
 - **Cambiar el PIN por uno más largo**: la base ya tiene los datos reales del cliente (se cambia en Vercel sin tocar código).
-- **Clave de Storage**: falta `SUPABASE_SECRET_KEY` en `.env.local` y en Vercel (y `SUPABASE_URL` en Vercel). Sin eso no se pueden subir fotos. Una vez cargada, probar subir/ver/borrar.
+- **Probar en el navegador (celular y PC)** lo del 2026-10-18: inicio, alta de campo con foto del mapa, alta de lote marcándolo en el mapa, coordenadas ("Usar mi ubicación", pegar desde Google Maps), cerrar/reabrir/iniciar cultivo, subir la receta oficial. Se verificó compilando, abriendo las páginas y con pruebas en la base, no a mano en pantalla.
+- Los campos y lotes existentes **no tienen coordenadas**: al editarlos las pide (ahora son obligatorias).
+- El historial de labores y la ficha del lote muestran solo el cultivo en curso; lo cerrado se ve en el informe de cierre. Evaluar un filtro por campaña en el historial si hace falta.
 - La base es **una sola para local y producción**: lo que se cargue en local queda en serio. Evaluar un proyecto/branch de Supabase aparte para desarrollo antes de entregar.
 - Vercel: poner las funciones en la región **São Paulo (gru1)**, cerca de la base, para bajar la latencia de cada consulta.
-- Probar contra la base todo lo nuevo (ver bitácora 2026-10-17). La migración 0006 ya está aplicada (verificado el 2026-10-18). Ningún campo tiene todavía foto de mapa: el mapa en los PDF se probó solo con una imagen de prueba.
+- Ningún campo tiene todavía foto de mapa: el mapa en los PDF se probó solo con una foto de ejemplo generada.
 - La columna `lotes.contorno` (PostGIS) queda sin uso: el mapa usa `lotes.dibujo`.
 - Al borrar una labor/lote con fotos, el archivo queda en Storage (la fila se borra en cascada). Limpiar cuando se implemente el borrado de lotes o las fotos de labores.
 
@@ -247,3 +252,23 @@ Principios ya acordados como recomendación:
 3. Push a `main` (deploy) recién con la migración aplicada.
 4. Cargar en Ajustes los datos del ingeniero y crear los productores con sus campos.
 5. Preguntar al cliente lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
+
+### 2026-10-18
+- Abrir sesión: el repo estaba al día; se cargaron `SUPABASE_URL` y `SUPABASE_SECRET_KEY` en `.env.local` (probadas contra Storage) y el dev las cargó en Vercel. La migración 0006 ya estaba aplicada.
+- **PDF de la labor** para el cliente (campo, lote, mapa con manchones, productos, detalle del costo, receta vinculada, labores del lote). Mapa con el lote resaltado en los PDF de receta, informe y labor.
+- **PDF de muestra** para mostrarle al cliente (6, con datos reales de Estancia Santa Marta y una foto aérea de ejemplo): se copiaron al escritorio del dev en "Zafiro - PDF de muestra". Al revisarlos se corrigieron cortes de hoja.
+- En producción las pantallas con fotos (y los PDF) daban **error 500**; ahora andan. No se confirmó la causa (probable: espacios en las variables de Vercel, que ahora se recortan) y un error de almacenamiento ya no rompe la página.
+- **Campañas por cultivo** (migración 0007, aplicada): cultivo en curso por lote, cierre manual con informe de cierre, reabrir, iniciar el siguiente. Informes por campaña, filtro de productor siempre visible y resumen por cultivo y campo.
+- **Receta oficial en PDF** (bucket `documentos`), exportada junto al resumen. Al borrar una receta se desvinculan sus labores.
+- Coordenadas obligatorias, foto del mapa en el alta del campo y en el alta de lote, inicio sin montos.
+- Script `db:borrar-trabajos` listo y probado en seco (31 labores, 83 productos aplicados, 31 cultivos). **No se corrió.**
+- Commits: `0b5e2e5`, `9d70eb8`, `77bd8a2` (con push y deploy verificado).
+
+**Estado al cierre:** todo desplegado y andando en producción; los datos siguen siendo los de prueba.
+
+**Próximos pasos:**
+1. Cuando el dev lo confirme: `npm run db:borrar-trabajos -- --confirmar` (quedan campos, lotes, insumos y catálogos; los lotes arrancan sin cultivo).
+2. Recorrer en el celular lo nuevo (ver Preguntas abiertas → Técnicas) y cargar las coordenadas y la foto del mapa de cada campo.
+3. Cargar en Ajustes los datos del ingeniero y crear los productores con sus campos.
+4. Mostrarle al cliente los PDF de muestra y preguntarle lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
+5. Cambiar el PIN por uno más largo (en local es `0000`).
