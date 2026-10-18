@@ -24,6 +24,12 @@ Next.js 16 (App Router, `src/`) + TypeScript · Tailwind v4 + shadcn/ui · Drizz
 - `npm run db:studio`: explorador de la base de datos.
 - `npm run db:cargar`: carga en la base (vacía) los datos de `datos-demo/zafiro.json`.
 
+## PDF y mapa
+
+- PDF con `@react-pdf/renderer` en route handlers (`src/pdf/`, rutas `.../pdf/route.tsx`). Los route handlers no pasan por el layout: **llamar a `verificarSesion()`**.
+- Mapa sin GIS: puntos relativos (0–1) sobre la foto del campo (`lotes.dibujo`, `labores.zonas`); ver `src/components/app/mapa.tsx`.
+- Datos extra que agrega el usuario: `campos_personalizados` + columna `extras` (validar con `limpiarExtras`).
+
 ## Acceso
 
 - Un solo usuario con PIN (`ACCESO_PIN`). Sin sesión, `/` muestra `PantallaPin`; el resto de las rutas redirige a `/` (`src/proxy.ts`).

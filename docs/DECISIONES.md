@@ -6,7 +6,7 @@
 ## 1. Contexto del proyecto
 
 - **Qué es:** sistema de gestión agronómica a medida para un cliente (ingeniero agrónomo / productor, Argentina).
-- **Estado:** prototipo funcionando con los datos reales de la planilla del cliente (ver bitácora 2026-10-01, sesión 2). **Todavía no hubo reunión con el cliente**; hay un audio con ideas generales y su planilla anterior.
+- **Estado:** el cliente respondió el cuestionario (`docs/Respuesta cliente.pdf`, ver 1.1). Se implementó todo lo que pidió (bitácora 2026-10-17); **falta aplicar la migración 0006 y probar contra la base**.
 - **Lo que dijo el cliente en el audio:**
   - Ya tiene una "base de datos" (formato desconocido).
   - Trabaja varios campos en distintas localidades; los lotes los dibuja/descarga desde Google Earth (ubicación, lotes).
@@ -14,11 +14,35 @@
   - Quiere: lista de productos, qué se aplicó en cada lote, cuánto se gastó por lote/campo, lista de precios,
     generar recetas de lo que se va a aplicar (o cargar recetas).
 
+### 1.1 Respuestas del cliente (cuestionario v1, 2026-10-17)
+
+| Tema | Respuesta |
+|---|---|
+| Usuarios | Solo él (ingeniero). Asesora a **otros productores**: ellos no entran al sistema, él les manda **PDF** |
+| Uso | PC y celular |
+| Hoy | La planilla Excel que pasó |
+| Google Earth | **No exporta nada**. Quiere **subir una foto del campo y marcar los lotes con color y lo sembrado**, y también las coordenadas |
+| Lotes | No cambian de forma. Datos del lote: todos, **opcionales** |
+| Campaña | De la preparación a la cosecha, con todos los gastos (también los de cosecha) para el margen bruto |
+| Labores | Que se puedan agregar (ej. pasada de disco). Datos de aplicación: todos, opcionales y **que se puedan agregar** |
+| Mezclas de tanque | No · Planificado vs aplicado: **no** |
+| Aplicación parcial | A veces en **manchones**: poder marcarlos en el mapa (opcional) |
+| Quién hace las labores | Contratistas y máquinas propias; cobro **por hora y por hectárea** |
+| Receta | Oficial de **Entre Ríos**; en el sistema, un **resumen** con los datos necesarios, opcionales y con campos agregables; se descarga y se manda al cliente. Las hace solo él |
+| Productos | Todos los datos, opcionales, que se puedan agregar o quitar. Precios en **USD**, **varios proveedores**, **sin historial de precios** |
+| Stock | **Por campo**, que se descuente al aplicar |
+| Costos | Todos y que se puedan agregar (alquiler, flete, seguros…). Por campo, lote, cultivo o general, **seleccionable** |
+| Rinde | Sí, en kg/ha |
+| Informes | **PDF con buen formato de Zafiro** para el cliente: durante, antes o después de la campaña, con campo, foto, productos, labores, lote, recetas |
+| Mapa | Subir la foto, marcar lotes ahí, coordenadas; ver con colores qué hay en cada lote |
+| Sin responder | 2.1, 2.2 (historia a migrar), 6.5 (precio de lista o factura), 9.1–9.3 (prioridades, plazos, presupuesto) |
+
 ## 2. Documentos del proyecto
 
 | Archivo | Qué es |
 |---|---|
 | `docs/Preguntas_Cliente_Relevamiento.pdf` | Cuestionario para la reunión con el cliente (v3: solo lo pendiente después de la planilla y el prototipo) |
+| `docs/Respuesta cliente.pdf` | Cuestionario v1 respondido por el cliente (resumen en 1.1) |
 | `docs/fuentes/Preguntas_Cliente_Relevamiento.html` | Fuente editable del PDF del cuestionario |
 | `docs/ANALISIS_EXCEL_ANTERIOR.md` | Análisis de la planilla anterior del cliente: hojas, fórmulas, pantallas propuestas y campos obligatorios |
 | `docs/DECISIONES.md` | Este archivo |
@@ -27,20 +51,23 @@
 | `src/db/schema.ts` | Esquema de base de datos (Drizzle) |
 | `drizzle/` | Migraciones SQL generadas (0005 incluye el bucket de fotos) |
 | `scripts/importar-planilla.py` · `scripts/cargar-datos.mjs` | Planilla `.xlsm` → `datos-demo/zafiro.json` → base (`npm run db:cargar`). Los datos no se versionan |
-| `public/marca/` | Logo, isotipo e ícono del cliente (sacados de `Logo.jpeg`) |
+| `public/marca/` | Logo, isotipo e ícono del cliente (sacados de `Logo.jpeg`); `logo-pdf.png` es la versión liviana para los PDF |
+| `src/pdf/` | PDF con la marca Zafiro (`@react-pdf/renderer`): receta e informe de campaña |
 | Lienzo de diseño | https://claude.ai/artifact/DYoqmYLc8zvf2bMrC9jhou (primeras pantallas, paleta provisoria; la app ya usa la del logo) |
 
 ## 3. Modelo de dominio preliminar (a validar con el cliente)
 
 ```
-Productor/Cliente ─┬─ Campo (localidad, provincia) ── Fotos
-                   │     └─ Lote (código, polígono KML, superficie ha) ── Fotos
+Productor (al que asesora) ─┬─ Campo (localidad, coordenadas, foto del mapa) ── Fotos · Stock (movimientos)
+                   │     └─ Lote (código, ha, tenencia, suelo, dibujo sobre la foto) ── Fotos
                    │           └─ Ciclo/Campaña (cultivo, variedad, siembra; cosecha: rinde, pizarra, arrendamiento, gastos, flete)
-                   │                 └─ Labor (tipo de labor, fecha, ha, costo labor/ha snapshot, aporte, contratista)
+                   │                 ├─ Labor (tipo, fecha, ha, propia/contratista, cobro por ha u hora, aplicación, manchones)
+                   │                 └─ Gasto (alquiler, flete, seguro…; también por campo o general)
                    │                       └─ LaborInsumo (producto, dosis/ha, cantidad, precio al momento)
-                   └─ Receta (nº, fecha, lote, cultivo, plaga, ingeniero) → genera Labor planificada
+                   └─ Receta (nº correlativo, lote, objetivo, productos, condiciones) → PDF
 Producto (nombre, categoría, unidad, principio activo) ── PrecioProducto (proveedor, moneda, precio, fecha)
 TipoLabor (nombre, categoría, tarifa en L de gasoil/ha o USD/ha) · Cotización (fecha, tipo de cambio, gasoil) · Aporte
+CampoPersonalizado (dato extra de campo/lote/insumo/labor/receta; valores en la columna `extras`)
 ```
 
 Principios ya acordados como recomendación:
@@ -98,28 +125,43 @@ Principios ya acordados como recomendación:
 | 2026-10-01 | Mapa y contornos KML: **se deja para después de la reunión** con el cliente | Decisión del dev |
 | 2026-10-01 | Cuestionario **v3**: se agregan fotos (8.3), propuesta de colores del logo (9.4) y listas que cambian seguido (9.5); se avisa que hay un prototipo para mostrar | Preparar la reunión |
 | 2026-10-01 | Cuestionario v2 (`docs/Preguntas_Cliente_Relevamiento.pdf`, fuente HTML en `docs/fuentes/`): solo las preguntas que quedan después del Excel | Se regenera con Edge headless |
+| 2026-10-17 | **Productores**: tabla `productores` y `campos.productor_id`. No usan el sistema; reciben PDF | Respuesta 1.2 |
+| 2026-10-17 | **Campos personalizados**: tabla `campos_personalizados` (campo, lote, insumo, labor, receta; texto/número/fecha) + columna `extras` (jsonb, id → valor). Se editan en Ajustes; quitar uno lo oculta sin borrar lo cargado | "Que sean opcionales y que se puedan agregar" (3.4, 4.2, 5.2, 6.1) |
+| 2026-10-17 | Datos estándar opcionales: lote (tenencia, tipo de suelo, coordenadas; variedad y siembra van en el ciclo), insumo (concentración, formulación, presentación, banda, carencia), campo (coordenadas). Se cargan en un bloque plegable "Más datos" | Que el formulario corto siga corto en el celular |
+| 2026-10-17 | Labor: `modalidad` (propia/contratista) + contratista (se elige o se escribe y se crea); `cobro` **por ha** (costo/ha × ha) **o por hora** (horas × USD/hora); datos de aplicación opcionales (caudal, temperatura, humedad, viento, dirección, aplicador) | Respuestas 4.2 y 4.6 |
+| 2026-10-17 | **Stock por campo** = suma de `movimientos_stock` (ingreso, aplicación, ajuste). Al guardar una labor se descuentan sus productos del campo del lote (casilla, por defecto sí); editar/borrar la labor rehace/devuelve el stock. El ajuste guarda la diferencia con lo contado. El stock puede quedar negativo (se avisa) | Respuesta 6.6 |
+| 2026-10-17 | **Otros gastos** (`gastos` + `categorias_gasto` editables): de un lote, de un campo entero (se reparte por ha entre sus lotes) o generales de la campaña (no se reparten). Entran en el costo del lote y en el margen bruto | Respuestas 3.3 y 7.1 |
+| 2026-10-17 | **Recetas**: resumen propio de la receta oficial de Entre Ríos (no la reemplaza). Número correlativo automático, N° de receta oficial opcional, objetivo, tipo de aplicación, caudal, productos con dosis, condiciones/distancias, recomendaciones, observaciones, estado. **No se vinculan a labores** | Respuestas 4.4, 5.1–5.4 |
+| 2026-10-17 | **PDF con `@react-pdf/renderer`** en route handlers (`/recetas/[id]/pdf`, `/informes/pdf?productor=&campo=&lote=&cultivo=`), Helvetica, colores del logo; se abren en el navegador para compartir. Datos del ingeniero (nombre, matrícula, contacto) en `configuracion`, editables en Ajustes | Respuesta 7.4; reemplaza la impresión del navegador para lo que se manda al cliente |
+| 2026-10-17 | Informes con **filtros** (productor, campo, lote, cultivo) y **agrupación** (campo, lote, cultivo, productor), en pantalla y en PDF | Respuesta 7.2 |
+| 2026-10-17 | **Mapa sin GIS**: foto del campo (`campos.foto_mapa_id`, una de sus fotos) y lotes marcados tocando las esquinas sobre la foto (`lotes.dibujo`: puntos relativos 0–1). Color por cultivo. Manchones de una labor en `labores.zonas`. Coordenadas lat/long con link a Google Maps. **Se descarta KML/Leaflet** | Respuestas 2.3, 4.5 y 8.x: no usa Google Earth |
+| 2026-10-17 | Cosecha (rinde kg/ha, precio, arrendamiento %, comercialización %, flete) se carga desde la ficha del lote | Respuesta 7.3; antes el formulario no guardaba |
+| 2026-10-17 | Historial de precios: **se deja de mostrar** (el cliente no lo quiere); se sigue guardando (el vigente es el último) porque no molesta y las labores guardan su snapshot | Respuesta 6.4 |
+| 2026-10-17 | Mezclas de tanque: se mantiene "labor con N productos" (sirve igual con uno solo) | Respuesta 4.3 |
 
 ## 5. Preguntas abiertas
 
-### Con el cliente (ver PDF v3)
-- ¿Hay más planillas/campañas para migrar? (la actual ya está cargada en la base).
+### Con el cliente
+- **Prioridades, plazos y presupuesto** (9.1–9.3 quedaron sin responder).
+- ¿El costo se calcula con precio de lista o de factura? (6.5 sin responder; hoy: el precio que se carga en la labor).
+- ¿Hay más planillas/campañas para migrar? (2.1/2.2 sin responder; la actual ya está cargada en la base).
+- ¿Qué datos de la receta oficial de Entre Ríos son imprescindibles en el resumen? (hoy: los del formulario + campos propios).
+- ¿Quiere numerar las recetas desde algún número en particular? (hoy arranca en 1).
 - Qué significa **"APORTE"** (proveedor, quién paga, dueño del campo).
 - Arrendamiento: **% de la producción o tn/ha**; qué es la **bonificación 15%**; cómo se calcula el **flete**.
 - Unidades dudosas e insumos de relleno de la planilla (semillas 1..6 a 53 USD).
 - ¿Receta fitosanitaria oficial? ¿Provincia?
 - Precios siempre en USD? ¿Qué tipo de cambio usa?
-- ¿Uso offline en el campo? (define si hace falta PWA con offline)
-- ¿Solo él usa el sistema o también otros? (hoy se asume solo el admin)
-- ¿Necesita mapa? (define si se hace la carga de KML y el mapa)
-- Prioridades para el MVP y plazos.
+- ¿Uso offline en el campo? (respondió "ambas" para PC y celular; no aclaró si hay señal).
 
 ### Técnicas (pendientes)
 - **Cambiar el PIN por uno más largo**: la base ya tiene los datos reales del cliente (se cambia en Vercel sin tocar código).
 - **Clave de Storage**: falta `SUPABASE_SECRET_KEY` en `.env.local` y en Vercel (y `SUPABASE_URL` en Vercel). Sin eso no se pueden subir fotos. Una vez cargada, probar subir/ver/borrar.
 - La base es **una sola para local y producción**: lo que se cargue en local queda en serio. Evaluar un proyecto/branch de Supabase aparte para desarrollo antes de entregar.
 - Vercel: poner las funciones en la región **São Paulo (gru1)**, cerca de la base, para bajar la latencia de cada consulta.
-- Mapas (después de la reunión): Leaflet (react-leaflet) + `@tmcw/togeojson` para importar KML/KMZ al `contorno` del lote.
-- PDF: hoy se usa la impresión del navegador; para recetas con formato oficial evaluar `@react-pdf/renderer`.
+- **Aplicar la migración 0006** (`npm run db:migrate`) apenas se reactive Supabase, y **recién después hacer push** (el deploy de `main` espera las tablas nuevas).
+- Probar contra la base todo lo nuevo (ver bitácora 2026-10-17). Los PDF se probaron solo con datos de prueba.
+- La columna `lotes.contorno` (PostGIS) queda sin uso: el mapa usa `lotes.dibujo`.
 - Al borrar una labor/lote con fotos, el archivo queda en Storage (la fila se borra en cascada). Limpiar cuando se implemente el borrado de lotes o las fotos de labores.
 
 ## 6. Perfil del desarrollador y restricciones
@@ -178,3 +220,19 @@ Principios ya acordados como recomendación:
 4. **Reunión con el cliente** con el PDF v3 y el prototipo; volcar respuestas acá (aporte, arrendamiento, bonificación, flete, mapa, prioridades).
 5. Pendientes de la app: guardar los datos de cosecha en el margen bruto, contratistas, fotos de labores, ajustes (aportes, cultivos, valores por defecto).
 6. Después de la reunión: mapa y contornos KML si el cliente lo necesita.
+
+### 2026-10-17
+- Se leyó la respuesta del cliente (`docs/Respuesta cliente.pdf`, resumen en 1.1) y se implementó todo lo pedido. 5 commits locales (sin push).
+- Migración `0006_productores_stock_gastos` (**generada, sin aplicar**: Supabase estaba pausado).
+- Nuevo: productores; ajustes (datos propios, contratistas, proveedores, categorías de gasto, aportes, datos del ingeniero); otros gastos; stock por campo; cosecha; recetas con PDF; informes con filtros y PDF; mapa sobre foto con lotes por cultivo y manchones; labores con contratista, cobro por hora y datos de aplicación; datos opcionales en campo, lote e insumo; edición de campo e insumo.
+- Navegación: en PC barra lateral con todas las secciones; en el celular, "Más" agrupa productores, recetas, informes, stock, gastos, insumos, labores y ajustes.
+- Verificado: `tsc`, `eslint` y `next build` sin errores; PDF de receta e informe generados con datos de prueba y revisados. **No se probó nada contra la base** (pausada).
+
+**Estado al cierre:** código listo en local; falta reactivar Supabase, migrar, probar y desplegar.
+
+**Próximos pasos:**
+1. Reactivar Supabase (Restore project) → `npm run db:migrate` → `npm run dev` y probar: productor, campo con productor, lote con datos opcionales, labor con contratista/por hora/manchones/stock, ingreso y ajuste de stock, gasto de campo, cosecha, receta + PDF, informe + PDF, mapa (subir foto y marcar lotes), ajustes.
+2. Cargar `SUPABASE_SECRET_KEY` (fotos y mapa no andan sin eso).
+3. Push a `main` (deploy) recién con la migración aplicada.
+4. Cargar en Ajustes los datos del ingeniero y crear los productores con sus campos.
+5. Preguntar al cliente lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
