@@ -292,14 +292,16 @@ export function InformePdf({
           </Seccion>
         )}
 
-        <Seccion titulo="Detalle de labores" quiebre={conCostos.length > 3}>
+        {/* El detalle es un anexo: siempre arranca en hoja nueva. */}
+        <Seccion titulo="Detalle de labores" quiebre={informe.labores.length > 0}>
           {conCostos.map((f) => {
             const delLote = informe.labores
               .filter((l) => l.loteId === f.lote.id)
               .sort((a, b) => a.fecha.localeCompare(b.fecha));
             if (!delLote.length) return null;
             return (
-              <View key={f.lote.id} style={{ marginBottom: 10 }}>
+              // Un lote con pocas labores no se parte entre hojas (el título quedaría solo al pie).
+              <View key={f.lote.id} style={{ marginBottom: 10 }} wrap={delLote.length > 15}>
                 <Text style={{ fontFamily: "Helvetica-Bold", color: COLOR.zafiro, marginBottom: 3 }} minPresenceAhead={30}>
                   {f.campo} · {f.lote.codigo} {f.lote.nombre} · {f.lote.cultivo} · {usd(f.lote.ha)} ha
                 </Text>
