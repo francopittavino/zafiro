@@ -28,7 +28,9 @@ export function InformePdf({
   const conCostos = filas.filter((f) => f.conMovimientos);
   const margenTotal = informe.margenes.reduce((t, m) => t + m.resultado.margen, 0);
   const haCosechadas = informe.margenes.reduce((t, m) => t + m.fila.lote.ha, 0);
-  const titulo = `Informe de campaña ${datos.campania}`;
+  const titulo = informe.encabezado;
+  const porCultivo = informe.agrupar("cultivo");
+  const porCampo = informe.agrupar("campo");
   const porHa = (v: number, ha: number) => (ha ? usd(v / ha) : "—");
 
   return (
@@ -70,7 +72,7 @@ export function InformePdf({
         {mapas.length > 0 && (
           <Seccion titulo={mapas.length > 1 ? "Mapas" : "Mapa"}>
             {mapas.map((m) => (
-              <MapaCampoPdf key={m.campo} mapa={m} resaltado={informe.lote?.id} />
+              <MapaCampoPdf key={m.campo} mapa={m} resaltado={informe.lote?.id ?? informe.ciclo?.loteId} />
             ))}
           </Seccion>
         )}
@@ -97,6 +99,32 @@ export function InformePdf({
           />
         </Seccion>
 
+        {/* Ej. un productor con el mismo cultivo repartido en varios campos. */}
+        {porCampo.length > 1 && (
+          <Seccion titulo="Resumen por cultivo y por campo">
+            <View style={{ flexDirection: "row", gap: 12 }} wrap={false}>
+              {(
+                [
+                  ["Cultivo", porCultivo],
+                  ["Campo", porCampo],
+                ] as const
+              ).map(([nombre, grupos]) => (
+                <View key={nombre} style={{ flex: 1 }}>
+                  <Tabla
+                    columnas={[
+                      { titulo: nombre, ancho: 2.4 },
+                      { titulo: "ha", ancho: 1, derecha: true },
+                      { titulo: "USD", ancho: 1.4, derecha: true },
+                      { titulo: "USD/ha", ancho: 1.2, derecha: true },
+                    ]}
+                    filas={grupos.map((g) => [g.nombre, usd(g.ha), usd(g.total), porHa(g.total, g.ha)])}
+                  />
+                </View>
+              ))}
+            </View>
+          </Seccion>
+        )}
+
         <Seccion titulo="Costos por lote">
           <Tabla
             columnas={[
@@ -105,7 +133,7 @@ export function InformePdf({
               { titulo: "Cultivo", ancho: 1.6 },
               { titulo: "ha", ancho: 1, derecha: true },
               { titulo: "Insumos", ancho: 1.4, derecha: true },
-              { titulo: "Labores", ancho: 1.4, derecha: true },
+              { titulo: "Labores y cosecha", ancho: 1.6, derecha: true },
               { titulo: "Otros", ancho: 1.2, derecha: true },
               { titulo: "Total", ancho: 1.5, derecha: true },
               { titulo: "USD/ha", ancho: 1.2, derecha: true },

@@ -1,14 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "node:crypto";
 import { eq, max } from "drizzle-orm";
 import { db, dbTx } from "@/db";
-import { configuracion, recetaItems, recetas } from "@/db/schema";
+import { configuracion, labores, recetaItems, recetas } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
-import { campaniaActual } from "@/lib/datos";
-import { cicloDelLote } from "@/lib/ciclos";
+import { SIN_CULTIVO, cicloParaRegistro } from "@/lib/ciclos";
 import { limpiarExtras } from "@/lib/extras";
 import { modoDemo } from "@/lib/modo-demo";
+import { borrarArchivo, mensajeAlmacenamiento, subirArchivo } from "@/lib/almacenamiento";
 import { CLAVES_INGENIERO } from "@/lib/recetas";
 import type { ResultadoAlta } from "../acciones-catalogos";
 
@@ -53,13 +54,17 @@ export async function guardarReceta(datos: DatosReceta, recetaId?: number): Prom
   if (recetaId !== undefined && !Number.isInteger(recetaId)) return { ok: false, error: "Receta inválida." };
   if (modoDemo()) return { ok: true, demo: true };
 
-  const campania = await campaniaActual();
-  if (!campania) return { ok: false, error: "No hay una campaña creada." };
+  const anterior =
+    recetaId === undefined
+      ? undefined
+      : (await db.select({ cicloId: recetas.cicloId }).from(recetas).where(eq(recetas.id, recetaId)))[0]?.cicloId;
+  const ciclo = await cicloParaRegistro(db, datos.loteId, anterior);
+  if (!ciclo) return { ok: false, error: SIN_CULTIVO };
   const extras = await limpiarExtras("receta", datos.extras);
 
   const id = await dbTx.transaction(async (tx) => {
     const valores = {
-      cicloId: await cicloDelLote(tx, datos.loteId, campania.id),
+      cicloId: ciclo.id,
       fecha: datos.fecha,
       estado: datos.estado,
       numeroOficial: texto(datos.numeroOficial),
@@ -104,8 +109,11 @@ export async function eliminarReceta(id: number): Promise<ResultadoAlta> {
   await verificarSesion();
   if (!Number.isInteger(id)) return { ok: false, error: "Receta inválida." };
   if (modoDemo()) return { ok: true, demo: true };
-  // receta_items se borra en cascada (las labores no se vinculan a recetas: el cliente no compara planificado vs aplicado).
-  await db.delete(recetas).where(eq(recetas.id, id));
+  // receta_items se borra en cascada; el PDF oficial se borra del almacenamiento.
+  // Las labores que se hicieron con esta receta quedan sin receta.
+  await db.update(labores).set({ recetaId: null }).where(eq(labores.recetaId, id));
+  const [borrada] = await db.delete(recetas).where(eq(recetas.id, id)).returning({ ruta: recetas.archivoOficial });
+  if (borrada?.ruta) await borrarArchivo(borrada.ruta, "documentos").catch(() => {});
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -123,6 +131,48 @@ export async function guardarDatosIngeniero(datos: Record<string, string>): Prom
         .onConflictDoUpdate({ target: configuracion.clave, set: { valor } });
     }
   });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** PDF de la receta oficial de la provincia: hasta 10 MB (como el bucket "documentos"). */
+const TAMANIO_MAXIMO_PDF = 10 * 1024 * 1024;
+
+/** Sube (o reemplaza) el PDF de la receta oficial: sale pegado al resumen al exportar. */
+export async function subirRecetaOficial(formulario: FormData): Promise<ResultadoAlta> {
+  await verificarSesion();
+  if (modoDemo()) return { ok: false, error: "En el modo demo no se pueden subir archivos." };
+  const recetaId = Number(formulario.get("recetaId"));
+  const archivo = formulario.get("archivo");
+  if (!Number.isInteger(recetaId)) return { ok: false, error: "Receta inválida." };
+  if (!(archivo instanceof File) || archivo.size === 0) return { ok: false, error: "Elegí el PDF de la receta oficial." };
+  if (archivo.type !== "application/pdf") return { ok: false, error: "El archivo tiene que ser un PDF." };
+  if (archivo.size > TAMANIO_MAXIMO_PDF) return { ok: false, error: "El PDF es demasiado grande (máximo 10 MB)." };
+
+  const [receta] = await db.select({ anterior: recetas.archivoOficial }).from(recetas).where(eq(recetas.id, recetaId));
+  if (!receta) return { ok: false, error: "La receta ya no existe." };
+
+  const ruta = `recetas/${recetaId}/${Date.now()}-${randomBytes(4).toString("hex")}.pdf`;
+  try {
+    await subirArchivo(ruta, archivo, "documentos");
+  } catch (error) {
+    return { ok: false, error: mensajeAlmacenamiento(error) };
+  }
+  await db.update(recetas).set({ archivoOficial: ruta }).where(eq(recetas.id, recetaId));
+  if (receta.anterior) await borrarArchivo(receta.anterior, "documentos").catch(() => {});
+  revalidatePath("/", "layout");
+  return { ok: true, id: recetaId };
+}
+
+/** Saca el PDF oficial de la receta (el resumen queda igual). */
+export async function quitarRecetaOficial(recetaId: number): Promise<ResultadoAlta> {
+  await verificarSesion();
+  if (!Number.isInteger(recetaId)) return { ok: false, error: "Receta inválida." };
+  if (modoDemo()) return { ok: true, demo: true };
+  const [receta] = await db.select({ ruta: recetas.archivoOficial }).from(recetas).where(eq(recetas.id, recetaId));
+  if (!receta?.ruta) return { ok: true };
+  await db.update(recetas).set({ archivoOficial: null }).where(eq(recetas.id, recetaId));
+  await borrarArchivo(receta.ruta, "documentos").catch(() => {});
   revalidatePath("/", "layout");
   return { ok: true };
 }

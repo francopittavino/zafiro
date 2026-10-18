@@ -2,6 +2,8 @@ import Link from "next/link";
 import { FileDown } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { armarInforme, consultaFiltro, leerFiltro, type Agrupacion } from "@/lib/informe";
+import { ciclosCerrados, listarCampanias } from "@/lib/datos";
+import { fechaCorta } from "@/lib/formato";
 import { NOMBRE_CATEGORIA, num, usd } from "@/lib/formato";
 import { Filtros } from "./filtros";
 
@@ -11,7 +13,7 @@ export default async function Informes({ searchParams }: PageProps<"/informes">)
   const sp = await searchParams;
   const filtro = leerFiltro(sp);
   const agrupar = AGRUPACIONES.find((a) => a === sp.agrupar) ?? "campo";
-  const informe = await armarInforme(filtro);
+  const [informe, campanias, cerrados] = await Promise.all([armarInforme(filtro), listarCampanias(), ciclosCerrados()]);
   const { datos, totales } = informe;
   const grupos = informe.agrupar(agrupar).filter((g) => g.total > 0);
   const cultivos = [...new Set(datos.lotes.flatMap((l) => l.cultivo.split("/")).filter(Boolean))].sort();
@@ -28,17 +30,37 @@ export default async function Informes({ searchParams }: PageProps<"/informes">)
       <Encabezado
         volver="/mas"
         titulo="Informes"
-        subtitulo={`Campaña ${datos.campania} · ${informe.titulo}`}
+        subtitulo={`${informe.encabezado} · ${informe.titulo}`}
         acciones={
-          <a href={pdf} className="bg-primary text-primary-foreground flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-bold">
+          <a
+            href={pdf}
+            target="_blank"
+            rel="noreferrer"
+            className="bg-primary text-primary-foreground flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-bold"
+          >
             <FileDown className="size-4" aria-hidden />
-            PDF
+            Exportar PDF
           </a>
         }
       />
 
       <div className="flex flex-col gap-4 p-4 md:p-0">
-        <Filtros productores={datos.productores ?? []} campos={datos.campos} lotes={datos.lotes} cultivos={cultivos} />
+        <Filtros
+          campanias={campanias}
+          productores={datos.productores ?? []}
+          campos={datos.campos}
+          lotes={datos.lotes}
+          cultivos={cultivos}
+        />
+        {informe.ciclo && (
+          <p className="bg-zafiro-suave text-primary rounded-xl p-3 text-sm">
+            Cierre del cultivo {informe.ciclo.cultivo}
+            {informe.ciclo.fechaCierre && ` (cerrado el ${fechaCorta(informe.ciclo.fechaCierre)})`}.{" "}
+            <Link href="/informes" className="font-bold underline">
+              Volver a los cultivos en curso
+            </Link>
+          </p>
+        )}
 
         <section className="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4 md:grid-cols-6">
           <div className="col-span-2">
@@ -113,6 +135,37 @@ export default async function Informes({ searchParams }: PageProps<"/informes">)
           </section>
 
           <section>
+            <h2 className="mb-2 font-bold">Cultivos cerrados</h2>
+            {cerrados.length === 0 ? (
+              <p className="bg-card text-muted-foreground mb-6 rounded-xl border p-4 text-sm">
+                Cuando cierres un cultivo (desde la ficha del lote, después de la cosecha) aparece acá con su informe de cierre.
+              </p>
+            ) : (
+              <ul className="bg-card mb-6 divide-y rounded-xl border text-sm">
+                {cerrados.slice(0, 20).map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                    <Link href={`/informes?ciclo=${c.id}`} className="min-w-0">
+                      <span className="block font-bold">
+                        {c.cultivo} · {c.lote}
+                      </span>
+                      <span className="text-muted-foreground block text-xs">
+                        {c.campo} · Campaña {c.campania}
+                        {c.fechaCierre && ` · cerrado el ${fechaCorta(c.fechaCierre)}`}
+                      </span>
+                    </Link>
+                    <a
+                      href={`/informes/pdf?ciclo=${c.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-zafiro flex shrink-0 items-center gap-1 font-bold"
+                    >
+                      <FileDown className="size-4" aria-hidden /> PDF
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <h2 className="mb-2 font-bold">Consumo de insumos</h2>
             {informe.consumo.length === 0 ? (
               <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">Sin insumos aplicados.</p>

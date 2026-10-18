@@ -6,7 +6,7 @@ import { db, dbTx } from "@/db";
 import { gastos } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual } from "@/lib/datos";
-import { cicloDelLote } from "@/lib/ciclos";
+import { SIN_CULTIVO, cicloParaRegistro } from "@/lib/ciclos";
 import { modoDemo } from "@/lib/modo-demo";
 import type { ResultadoAlta } from "../acciones-catalogos";
 
@@ -36,13 +36,24 @@ export async function guardarGasto(datos: DatosGasto, gastoId?: number): Promise
   if (gastoId !== undefined && !Number.isInteger(gastoId)) return { ok: false, error: "Gasto inválido." };
   if (modoDemo()) return { ok: true, demo: true };
 
+  // El gasto de un lote va a su cultivo (y a la campaña de ese cultivo); el de un campo o
+  // general, a la campaña actual.
+  let ciclo: { id: number; campaniaId: number } | null = null;
+  if (datos.destino.tipo === "lote") {
+    const anterior =
+      gastoId === undefined
+        ? undefined
+        : (await db.select({ cicloId: gastos.cicloId }).from(gastos).where(eq(gastos.id, gastoId)))[0]?.cicloId;
+    ciclo = await cicloParaRegistro(db, datos.destino.id!, anterior);
+    if (!ciclo) return { ok: false, error: SIN_CULTIVO };
+  }
   const campania = await campaniaActual();
   if (!campania) return { ok: false, error: "No hay una campaña creada." };
 
   const id = await dbTx.transaction(async (tx) => {
     const valores = {
-      campaniaId: campania.id,
-      cicloId: datos.destino.tipo === "lote" ? await cicloDelLote(tx, datos.destino.id!, campania.id) : null,
+      campaniaId: ciclo?.campaniaId ?? campania.id,
+      cicloId: ciclo?.id ?? null,
       campoId: datos.destino.tipo === "campo" ? datos.destino.id! : null,
       categoriaId: datos.categoriaId,
       fecha: datos.fecha,

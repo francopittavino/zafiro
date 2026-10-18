@@ -56,6 +56,7 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
             fotos={galeria.fotos}
             lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo }))}
             disponible={galeria.disponible}
+            motivo={galeria.motivo}
           />
         </div>
         <div className="flex flex-col gap-4 md:order-1">

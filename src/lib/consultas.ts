@@ -30,8 +30,9 @@ function detallar(datos: Datos, labor: Labor): LaborDetalle {
   };
 }
 
-export async function laboresDetalladas(filtro?: { loteId?: number }) {
-  const datos = await obtenerDatos();
+/** Labores con sus costos; `datos` permite usar otro alcance (una campaña o un ciclo cerrado). */
+export async function laboresDetalladas(filtro?: { loteId?: number }, datos?: Datos) {
+  datos ??= await obtenerDatos();
   return datos.labores
     .filter((l) => !filtro?.loteId || l.loteId === filtro.loteId)
     .map((l) => detallar(datos, l));
@@ -82,14 +83,15 @@ export type CostoLote = {
   conMovimientos: boolean;
 };
 
-export async function costosPorLote(): Promise<CostoLote[]> {
-  const datos = await obtenerDatos();
-  const labores = await laboresDetalladas();
-  return datos.lotes.map((lote) => {
-    const campo = datos.campos.find((c) => c.id === lote.campoId);
-    const productor = datos.productores?.find((p) => p.id === campo?.productorId);
+export async function costosPorLote(datos?: Datos): Promise<CostoLote[]> {
+  datos ??= await obtenerDatos();
+  const labores = await laboresDetalladas(undefined, datos);
+  const d = datos;
+  return d.lotes.map((lote) => {
+    const campo = d.campos.find((c) => c.id === lote.campoId);
+    const productor = d.productores?.find((p) => p.id === campo?.productorId);
     const delLote = labores.filter((l) => l.loteId === lote.id);
-    const otros = otrosGastosDelLote(datos, lote).total;
+    const otros = otrosGastosDelLote(d, lote).total;
     return {
       lote,
       campo: campo?.nombre ?? "",

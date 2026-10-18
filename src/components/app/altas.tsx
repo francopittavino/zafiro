@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { Camera, MapPin } from "lucide-react";
 import type { Dibujo } from "@/db/schema";
 import type { FotoMapa } from "@/lib/fotos";
 import { Dialogo } from "./dialogo";
-import { EditorDibujo, completas, type LoteMapa } from "./mapa";
+import { EditorDibujo, completas, subirFotoMapa, type LoteMapa } from "./mapa";
 import { mapaParaMarcar } from "@/app/(app)/acciones-mapa";
 import { CamposExtra, leerExtras } from "./campos-extra";
 import type { Campo, Catalogo, CampoPersonalizado, Lote, Producto, Productor } from "@/lib/datos";
 import { CATEGORIAS_LABOR, CATEGORIAS_PRODUCTO, CULTIVOS_SUGERIDOS, UNIDADES } from "@/lib/catalogos";
-import { hoyIso, leerNumero, numeroEditable } from "@/lib/formato";
+import { campaniaSugerida, hoyIso, leerNumero, numeroEditable } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
   crearEnLista,
@@ -88,17 +89,85 @@ export function numeroOpcional(f: FormData, nombre: string) {
 const invalido = (...valores: (number | null)[]) => valores.some((v) => v !== null && Number.isNaN(v));
 const valorTexto = (v: number | null | undefined) => (v == null ? "" : numeroEditable(v));
 
+/**
+ * Latitud y longitud (obligatorias). Se pueden pegar juntas como las copia Google Maps
+ * ("-32.48254, -58.23721") o tomar la ubicación del celular parado en el campo.
+ */
 function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?: number | null }) {
+  const [lat, setLat] = useState(valorTexto(latitud));
+  const [lon, setLon] = useState(valorTexto(longitud));
+  const [aviso, setAviso] = useState("");
+  const [buscando, setBuscando] = useState(false);
+
+  function pegar(e: React.ClipboardEvent<HTMLInputElement>) {
+    const par = e.clipboardData.getData("text").match(/(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)/);
+    if (!par) return;
+    e.preventDefault();
+    setLat(par[1].replace(".", ","));
+    setLon(par[2].replace(".", ","));
+  }
+
+  function miUbicacion() {
+    if (!navigator.geolocation) return setAviso("Este dispositivo no da la ubicación.");
+    setBuscando(true);
+    setAviso("");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setLat(numeroEditable(Math.round(p.coords.latitude * 1e6) / 1e6));
+        setLon(numeroEditable(Math.round(p.coords.longitude * 1e6) / 1e6));
+        setBuscando(false);
+      },
+      () => {
+        setAviso("No se pudo tomar la ubicación (¿permiso del navegador?).");
+        setBuscando(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <label className={etiqueta}>
-        Latitud
-        <input name="latitud" className={entrada} inputMode="decimal" defaultValue={valorTexto(latitud)} placeholder="-32,4825" />
-      </label>
-      <label className={etiqueta}>
-        Longitud
-        <input name="longitud" className={entrada} inputMode="decimal" defaultValue={valorTexto(longitud)} placeholder="-58,2372" />
-      </label>
+    <div className="flex flex-col gap-1">
+      <div className="grid grid-cols-2 gap-3">
+        <label className={etiqueta}>
+          Latitud *
+          <input
+            name="latitud"
+            className={entrada}
+            inputMode="decimal"
+            value={lat}
+            onChange={(e) => setLat(e.target.value)}
+            onPaste={pegar}
+            placeholder="-32,4825"
+            required
+          />
+        </label>
+        <label className={etiqueta}>
+          Longitud *
+          <input
+            name="longitud"
+            className={entrada}
+            inputMode="decimal"
+            value={lon}
+            onChange={(e) => setLon(e.target.value)}
+            onPaste={pegar}
+            placeholder="-58,2372"
+            required
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <button
+          type="button"
+          onClick={miUbicacion}
+          disabled={buscando}
+          className="text-zafiro flex items-center gap-1 font-bold disabled:opacity-50"
+        >
+          <MapPin className="size-3.5" aria-hidden />
+          {buscando ? "Buscando…" : "Usar mi ubicación"}
+        </button>
+        <span className="text-muted-foreground">o pegá las dos juntas desde Google Maps</span>
+      </div>
+      {aviso && <p className="text-destructive text-xs">{aviso}</p>}
     </div>
   );
 }
@@ -219,6 +288,8 @@ export function FormCampo({
 }) {
   const { error, setError, guardando, enviar } = useEnvio(alGuardar);
   const extras = personalizados.filter((c) => c.entidad === "campo");
+  // Foto del mapa (solo en el alta): se sube después de crear el campo.
+  const [fotoMapa, setFotoMapa] = useState<File | null>(null);
   return (
     <form
       onSubmit={(e) => {
@@ -226,10 +297,11 @@ export function FormCampo({
         const f = new FormData(e.currentTarget);
         const latitud = numeroOpcional(f, "latitud");
         const longitud = numeroOpcional(f, "longitud");
-        if (invalido(latitud, longitud)) return setError("Las coordenadas tienen que ser números (ej. -32,4825).");
+        if (latitud === null || longitud === null || invalido(latitud, longitud))
+          return setError("Completá la latitud y la longitud (ej. -32,4825 y -58,2372).");
         const productor = String(f.get("productorId") ?? "");
-        enviar(() =>
-          guardarCampo(
+        enviar(async () => {
+          const r = await guardarCampo(
             {
               nombre: String(f.get("nombre")),
               productorId: productor ? Number(productor) : null,
@@ -241,8 +313,14 @@ export function FormCampo({
               extras: leerExtras(f),
             },
             campoId,
-          ),
-        );
+          );
+          if (r.ok && r.id && fotoMapa) {
+            const falla = await subirFotoMapa(r.id, fotoMapa);
+            // El campo ya quedó guardado: la foto se puede volver a subir desde su ficha.
+            if (falla) window.alert(`El campo se guardó, pero la foto del mapa no: ${falla}`);
+          }
+          return r;
+        });
       }}
       className="flex flex-col gap-3"
     >
@@ -278,8 +356,26 @@ export function FormCampo({
           <input name="provincia" className={entrada} defaultValue={inicial?.provincia ?? "Entre Ríos"} />
         </label>
       </div>
+      <Coordenadas latitud={inicial?.latitud} longitud={inicial?.longitud} />
+      {campoId === undefined && (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold">Foto del mapa</p>
+          <label className="bg-card hover:bg-muted flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 text-sm has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+            <Camera className="text-zafiro size-4 shrink-0" aria-hidden />
+            <span className="truncate">{fotoMapa ? fotoMapa.name : "Elegí una foto aérea o captura de Google Maps"}</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => setFotoMapa(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <p className="text-muted-foreground text-xs">
+            Opcional. Sobre esta foto vas a marcar cada lote (al cargarlo o desde la ficha del campo).
+          </p>
+        </div>
+      )}
       <MasDatos>
-        <Coordenadas latitud={inicial?.latitud} longitud={inicial?.longitud} />
         <CamposExtra campos={extras} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
         <label className={etiqueta}>
           Notas
@@ -315,6 +411,10 @@ export function FormLote({
   const [dibujo, setDibujo] = useState<Dibujo[]>(inicial?.dibujo ? [inicial.dibujo] : []);
   const [dibujoTocado, setDibujoTocado] = useState(false);
   const mapaDelCampo = mapa?.campoId === campoId ? mapa.datos : null;
+  const [vueltaMapa, setVueltaMapa] = useState(0);
+  const [subiendo, iniciarSubida] = useTransition();
+  const [errorFoto, setErrorFoto] = useState("");
+  const campoElegido = campos.find((c) => String(c.id) === campoId);
 
   useEffect(() => {
     const id = Number(campoId);
@@ -327,7 +427,19 @@ export function FormLote({
     return () => {
       vigente = false;
     };
-  }, [campoId]);
+  }, [campoId, vueltaMapa]);
+
+  function subirMapa(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo || !campoElegido) return;
+    setErrorFoto("");
+    iniciarSubida(async () => {
+      const falla = await subirFotoMapa(campoElegido.id, archivo);
+      if (falla) setErrorFoto(falla);
+      else setVueltaMapa((v) => v + 1);
+    });
+  }
 
   /** Contorno a guardar: undefined deja el que estaba; null lo borra. */
   function contornoAGuardar(): Dibujo | null | undefined {
@@ -346,7 +458,8 @@ export function FormLote({
         if (!(ha > 0)) return setError("La superficie tiene que ser un número mayor a 0.");
         const latitud = numeroOpcional(f, "latitud");
         const longitud = numeroOpcional(f, "longitud");
-        if (invalido(latitud, longitud)) return setError("Las coordenadas tienen que ser números (ej. -32,4825).");
+        if (latitud === null || longitud === null || invalido(latitud, longitud))
+          return setError("Completá la latitud y la longitud (ej. -32,4825 y -58,2372).");
         const tenencia = String(f.get("tenencia") ?? "");
         if (dibujoTocado && dibujo.length && !completas(dibujo).length)
           return setError("Marcá al menos 3 puntos del lote en el mapa (o borrá el contorno).");
@@ -359,6 +472,7 @@ export function FormLote({
               codigo: String(f.get("codigo")),
               ha,
               cultivo: String(f.get("cultivo")),
+              campania: String(f.get("campania") ?? "") || undefined,
               variedad: String(f.get("variedad") ?? ""),
               fechaSiembra: String(f.get("fechaSiembra") ?? ""),
               tenencia: tenencia === "propio" || tenencia === "alquilado" ? tenencia : null,
@@ -415,7 +529,7 @@ export function FormLote({
           />
         </label>
         <label className={etiqueta}>
-          Cultivo (campaña actual)
+          Cultivo en curso
           <input name="cultivo" className={entrada} list="cultivos" defaultValue={inicial?.cultivo} />
           <datalist id="cultivos">
             {CULTIVOS_SUGERIDOS.map((c) => (
@@ -424,9 +538,26 @@ export function FormLote({
           </datalist>
         </label>
       </div>
-      {mapaDelCampo ? (
+      {/* La campaña solo hace falta si el cultivo es nuevo (alta, o un lote sin cultivo en curso). */}
+      {!inicial?.cultivo && (
+        <label className={etiqueta}>
+          Campaña del cultivo
+          <input name="campania" className={entrada} defaultValue={campaniaSugerida()} placeholder="2025/26" />
+        </label>
+      )}
+      {/* En el alta se proponen las coordenadas del campo (después se ajustan). */}
+      <Coordenadas
+        key={loteId ? "lote" : campoId}
+        latitud={inicial?.latitud ?? (loteId ? null : campoElegido?.latitud)}
+        longitud={inicial?.longitud ?? (loteId ? null : campoElegido?.longitud)}
+      />
+      {nuevoCampo ? (
+        <p className="bg-muted/60 text-muted-foreground rounded-lg p-3 text-xs">
+          Mapa: guardá el lote y después subí la foto del campo desde su ficha para marcar los lotes.
+        </p>
+      ) : mapaDelCampo ? (
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-bold">Ubicación en el mapa del campo</p>
+          <p className="text-sm font-bold">Marcá el lote en el mapa del campo</p>
           <EditorDibujo
             foto={mapaDelCampo.foto}
             fondo={mapaDelCampo.lotes.filter((l) => l.id !== loteId)}
@@ -439,9 +570,18 @@ export function FormLote({
         </div>
       ) : (
         mapa?.campoId === campoId && (
-          <p className="text-muted-foreground text-xs">
-            Este campo todavía no tiene foto del mapa: subila desde la ficha del campo para marcar el lote.
-          </p>
+          <div className="bg-muted/60 flex flex-col gap-2 rounded-lg p-3 text-sm">
+            <p>
+              <span className="font-bold">{campoElegido?.nombre} todavía no tiene foto del mapa.</span>{" "}
+              <span className="text-muted-foreground">Subila acá y marcá el lote tocando sus esquinas.</span>
+            </p>
+            <label className="bg-primary text-primary-foreground flex h-10 w-fit cursor-pointer items-center gap-2 rounded-lg px-3 font-bold has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+              <Camera className="size-4" aria-hidden />
+              {subiendo ? "Subiendo…" : "Subir foto del mapa"}
+              <input type="file" accept="image/*" onChange={subirMapa} className="sr-only" disabled={subiendo} />
+            </label>
+            {errorFoto && <p className="text-destructive text-xs">{errorFoto}</p>}
+          </div>
         )
       )}
       <MasDatos>
@@ -469,7 +609,6 @@ export function FormLote({
             <input name="tipoSuelo" className={entrada} defaultValue={inicial?.tipoSuelo ?? ""} />
           </label>
         </div>
-        <Coordenadas latitud={inicial?.latitud} longitud={inicial?.longitud} />
         <CamposExtra campos={extras} valores={inicial?.extras} etiqueta={etiqueta} entrada={entrada} />
         <label className={etiqueta}>
           Notas

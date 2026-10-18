@@ -280,6 +280,28 @@ export function EditorDibujo({
 /** Figuras completas (3 puntos o más): las incompletas no se guardan. */
 export const completas = (figuras: Dibujo[]) => figuras.filter((f) => f.length >= 3);
 
+/** Achica la foto en el navegador y la sube como mapa del campo. Devuelve el error, si hubo. */
+export async function subirFotoMapa(campoId: number, archivo: File): Promise<string | null> {
+  let preparada;
+  try {
+    preparada = await prepararFoto(archivo);
+  } catch {
+    return "No se pudo leer la foto. Probá con otra (JPG o PNG).";
+  }
+  const datos = new FormData();
+  datos.set("tipo", "campo");
+  datos.set("destinoId", String(campoId));
+  datos.set("archivo", new File([preparada.archivo], "mapa.jpg", { type: "image/jpeg" }));
+  datos.set("ancho", String(preparada.ancho));
+  datos.set("alto", String(preparada.alto));
+  datos.set("fecha", hoyIso());
+  datos.set("nota", "Mapa del campo");
+  datos.set("mapa", "1");
+  const r = await subirFoto(datos);
+  URL.revokeObjectURL(preparada.vista);
+  return r.ok ? null : r.error;
+}
+
 // ─── Sección "Mapa" de la ficha del campo ───────────────────────────────────
 
 export function MapaCampo({
@@ -288,6 +310,7 @@ export function MapaCampo({
   fotos,
   lotes,
   disponible,
+  motivo,
 }: {
   campoId: number;
   foto: FotoMapa | null;
@@ -295,6 +318,8 @@ export function MapaCampo({
   fotos: Foto[];
   lotes: LoteMapa[];
   disponible: boolean;
+  /** Por qué no se puede usar el almacenamiento (si `disponible` es false). */
+  motivo?: string;
 }) {
   const [modo, setModo] = useState<"ver" | "marcar" | "foto">(foto ? "ver" : "foto");
   const [loteId, setLoteId] = useState<number | null>(null);
@@ -332,26 +357,11 @@ export function MapaCampo({
     e.target.value = "";
     if (!archivo) return;
     setError("");
-    try {
-      const preparada = await prepararFoto(archivo);
-      const datos = new FormData();
-      datos.set("tipo", "campo");
-      datos.set("destinoId", String(campoId));
-      datos.set("archivo", new File([preparada.archivo], "mapa.jpg", { type: "image/jpeg" }));
-      datos.set("ancho", String(preparada.ancho));
-      datos.set("alto", String(preparada.alto));
-      datos.set("fecha", hoyIso());
-      datos.set("nota", "Mapa del campo");
-      datos.set("mapa", "1");
-      iniciar(async () => {
-        const r = await subirFoto(datos);
-        URL.revokeObjectURL(preparada.vista);
-        if (!r.ok) setError(r.error);
-        else setModo("ver");
-      });
-    } catch {
-      setError("No se pudo leer la foto. Probá con otra (JPG o PNG).");
-    }
+    iniciar(async () => {
+      const falla = await subirFotoMapa(campoId, archivo);
+      if (falla) setError(falla);
+      else setModo("ver");
+    });
   }
 
   const botonSubir = (
@@ -393,7 +403,7 @@ export function MapaCampo({
 
       {!disponible ? (
         <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">
-          Para el mapa hace falta el almacenamiento de fotos (SUPABASE_URL y SUPABASE_SECRET_KEY).
+          {motivo ?? "Para el mapa hace falta el almacenamiento de fotos (SUPABASE_URL y SUPABASE_SECRET_KEY)."}
         </p>
       ) : modo === "foto" || !foto ? (
         <div className="bg-card flex flex-col gap-3 rounded-xl border p-4 text-sm">

@@ -6,6 +6,7 @@ import { valoresExtra } from "@/components/app/campos-extra";
 import { recetaDetallada } from "@/lib/recetas";
 import { fechaCorta, num } from "@/lib/formato";
 import { BotonEliminarReceta } from "./eliminar";
+import { RecetaOficial } from "./oficial";
 
 export default async function VerReceta({ params }: PageProps<"/recetas/[id]">) {
   const { id } = await params;
@@ -54,12 +55,15 @@ export default async function VerReceta({ params }: PageProps<"/recetas/[id]">) 
               ))}
             </dl>
           </section>
+          <RecetaOficial recetaId={r.id} cargada={Boolean(r.archivoOficial)} />
           <a
             href={`/recetas/${r.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
             className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
           >
             <FileDown className="size-5" aria-hidden />
-            Descargar PDF
+            {r.archivoOficial ? "Descargar PDF (resumen + oficial)" : "Descargar PDF"}
           </a>
           <BotonEliminarReceta id={r.id} />
         </div>

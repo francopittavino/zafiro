@@ -20,6 +20,7 @@ import {
   type Dibujo,
 } from "@/db/schema";
 import { dibujoValido } from "@/lib/dibujo";
+import { campaniaDeNombre, campaniaValida, cicloEnCurso } from "@/lib/ciclos";
 import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual } from "@/lib/datos";
 import { limpiarExtras } from "@/lib/extras";
@@ -38,8 +39,10 @@ const fechaValida = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}
 /** Número opcional para una columna numeric: null o un número válido. */
 const numeroOpcional = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? String(v) : null);
 const fechaOpcional = (v: unknown) => (fechaValida(v) ? (v as string) : null);
-const latitudValida = (v: unknown) => v == null || (numeroValido(v, -90) && (v as number) <= 90);
-const longitudValida = (v: unknown) => v == null || (numeroValido(v, -180) && (v as number) <= 180);
+// Las coordenadas son obligatorias en campos y lotes (pedido del cliente).
+const latitudValida = (v: unknown) => numeroValido(v, -90) && (v as number) <= 90;
+const longitudValida = (v: unknown) => numeroValido(v, -180) && (v as number) <= 180;
+const MENSAJE_COORDENADAS = "Completá la latitud y la longitud (ej. -32,4825 y -58,2372).";
 
 /** Postgres avisa con 23505 cuando se repite un valor único (nombre, código). */
 function esDuplicado(error: unknown) {
@@ -121,8 +124,7 @@ export async function guardarCampo(datos: DatosCampo, campoId?: number): Promise
   if (!nombre) return { ok: false, error: "Escribí el nombre del campo." };
   if (!idValido(campoId) || (datos.productorId != null && !Number.isInteger(datos.productorId)))
     return { ok: false, error: "Datos inválidos." };
-  if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud))
-    return { ok: false, error: "Revisá las coordenadas (latitud entre -90 y 90, longitud entre -180 y 180)." };
+  if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud)) return { ok: false, error: MENSAJE_COORDENADAS };
   if (modoDemo()) return { ok: true, demo: true };
 
   const valores = {
@@ -154,8 +156,10 @@ export type DatosLote = {
   nombre: string;
   codigo?: string;
   ha: number;
-  /** Cultivo de la campaña actual (crea o actualiza el ciclo), con su variedad y fecha de siembra. */
+  /** Cultivo en curso (lo actualiza, o lo inicia si el lote no tiene), con su variedad y fecha de siembra. */
   cultivo?: string;
+  /** Campaña del cultivo si se inicia uno nuevo (ej. "2025/26"). */
+  campania?: string;
   variedad?: string;
   fechaSiembra?: string;
   tenencia?: "propio" | "alquilado" | null;
@@ -175,7 +179,8 @@ function validarLote(datos: DatosLote) {
   if (datos.tenencia != null && datos.tenencia !== "propio" && datos.tenencia !== "alquilado")
     return "La tenencia no es válida.";
   if (datos.fechaSiembra && !fechaValida(datos.fechaSiembra)) return "La fecha de siembra no es válida.";
-  if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud)) return "Revisá las coordenadas.";
+  if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud)) return MENSAJE_COORDENADAS;
+  if (datos.campania && !campaniaValida(datos.campania)) return "La campaña tiene que ser como 2025/26.";
   if (datos.dibujo != null && !dibujoValido(datos.dibujo)) return "Marcá al menos 3 puntos del lote en el mapa.";
   return null;
 }
@@ -188,7 +193,6 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
   if (!idValido(loteId)) return { ok: false, error: "Lote inválido." };
   if (modoDemo()) return { ok: true, demo: true };
 
-  const campania = await campaniaActual();
   const codigo = texto(datos.codigo) || null;
   const cultivo = texto(datos.cultivo);
   const extras = await limpiarExtras("lote", datos.extras);
@@ -200,7 +204,12 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
         if (!campoId) {
           const [campo] = await tx
             .insert(campos)
-            .values({ nombre: texto(datos.nuevoCampo) })
+            // El campo nuevo toma la ubicación del lote (las coordenadas son obligatorias).
+            .values({
+              nombre: texto(datos.nuevoCampo),
+              latitud: numeroOpcional(datos.latitud),
+              longitud: numeroOpcional(datos.longitud),
+            })
             .returning({ id: campos.id });
           campoId = campo.id;
         }
@@ -225,18 +234,17 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
           await tx.update(lotes).set(valores).where(eq(lotes.id, id));
         }
 
-        if (campania && cultivo) {
+        if (cultivo) {
           const ciclo = { cultivo, variedad: opcional(datos.variedad), fechaSiembra: fechaOpcional(datos.fechaSiembra) };
-          const [existente] = await tx
-            .select({ id: ciclos.id })
-            .from(ciclos)
-            .where(and(eq(ciclos.loteId, id), eq(ciclos.campaniaId, campania.id)))
-            .limit(1);
+          const existente = await cicloEnCurso(tx, id);
           if (existente) await tx.update(ciclos).set(ciclo).where(eq(ciclos.id, existente.id));
-          else
-            await tx
-              .insert(ciclos)
-              .values({ loteId: id, campaniaId: campania.id, superficieHa: String(datos.ha), ...ciclo });
+          else {
+            const campaniaId = datos.campania
+              ? await campaniaDeNombre(tx, datos.campania)
+              : (await campaniaActual())?.id;
+            if (campaniaId)
+              await tx.insert(ciclos).values({ loteId: id, campaniaId, superficieHa: String(datos.ha), ...ciclo });
+          }
         }
         return id;
       }),

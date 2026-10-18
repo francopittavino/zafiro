@@ -83,6 +83,9 @@ export const estadoRecetaEnum = pgEnum("estado_receta", [
 
 export const tenenciaEnum = pgEnum("tenencia", ["propio", "alquilado"]);
 
+/** El cultivo del lote está en curso hasta que se cierra a mano (después de la cosecha). */
+export const estadoCicloEnum = pgEnum("estado_ciclo", ["en_curso", "cerrado"]);
+
 /** Quién hace la labor: máquinas propias o un contratista. */
 export const modalidadLaborEnum = pgEnum("modalidad_labor", ["propia", "contratista"]);
 
@@ -233,10 +236,17 @@ export const ciclos = pgTable(
     /** Flete en USD por tn neta. */
     fleteUsdTn: numeric({ precision: 14, scale: 4 }),
     bonificacionPorcentaje: numeric({ precision: 6, scale: 4 }),
+    estado: estadoCicloEnum().notNull().default("en_curso"),
+    fechaCierre: date(),
     notas: text(),
     creadoEn: creadoEn(),
   },
-  (t) => [index().on(t.loteId), index().on(t.campaniaId)],
+  (t) => [
+    index().on(t.loteId),
+    index().on(t.campaniaId),
+    // Un solo cultivo en curso por lote: el siguiente se inicia al cerrar el anterior.
+    uniqueIndex("ciclos_un_cultivo_en_curso").on(t.loteId).where(sql`${t.estado} = 'en_curso'`),
+  ],
 );
 
 // ─── Terceros ───────────────────────────────────────────────────────────────
@@ -365,6 +375,8 @@ export const recetas = pgTable(
     recomendaciones: text(),
     observaciones: text(),
     extras: jsonb().$type<Extras>(),
+    /** PDF de la receta oficial de la provincia (ruta en el bucket "documentos"). */
+    archivoOficial: text(),
     estado: estadoRecetaEnum().notNull().default("borrador"),
     creadoEn: creadoEn(),
   },

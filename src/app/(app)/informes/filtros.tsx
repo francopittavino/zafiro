@@ -1,16 +1,18 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { Campo, Lote, Productor } from "@/lib/datos";
+import type { Campo, Catalogo, Lote, Productor } from "@/lib/datos";
 import { entrada } from "@/components/app/altas";
 
 /** Filtros del informe: cambian la URL, así el PDF y la pantalla muestran lo mismo. */
 export function Filtros({
+  campanias,
   productores,
   campos,
   lotes,
   cultivos,
 }: {
+  campanias: Catalogo[];
   productores: Productor[];
   campos: Campo[];
   lotes: Lote[];
@@ -26,6 +28,8 @@ export function Filtros({
     const nuevos = new URLSearchParams(sp.toString());
     if (valor) nuevos.set(clave, valor);
     else nuevos.delete(clave);
+    // Cualquier filtro sale del informe de cierre de un cultivo.
+    nuevos.delete("ciclo");
     // Al cambiar un filtro de arriba, los de abajo que ya no corresponden se limpian.
     if (clave === "productor") {
       nuevos.delete("campo");
@@ -42,17 +46,35 @@ export function Filtros({
   const select = `${entrada} h-10 text-sm`;
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-      {productores.length > 0 && (
-        <select aria-label="Productor" className={select} value={productor} onChange={(e) => cambiar("productor", e.target.value)}>
-          <option value="">Todos los productores</option>
-          {productores.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
-      )}
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+      <select
+        aria-label="Campaña"
+        className={select}
+        value={sp.get("campania") ?? ""}
+        onChange={(e) => cambiar("campania", e.target.value)}
+      >
+        <option value="">Cultivos en curso</option>
+        {campanias.map((c) => (
+          <option key={c.id} value={c.id}>
+            Campaña {c.nombre} (completa)
+          </option>
+        ))}
+      </select>
+      {/* Por productor: todos sus campos juntos (puede tener el mismo cultivo en varios). */}
+      <select
+        aria-label="Productor"
+        className={select}
+        value={productor}
+        onChange={(e) => cambiar("productor", e.target.value)}
+        disabled={!productores.length}
+      >
+        <option value="">{productores.length ? "Todos los productores" : "Sin productores cargados"}</option>
+        {productores.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nombre}
+          </option>
+        ))}
+      </select>
       <select aria-label="Campo" className={select} value={campo} onChange={(e) => cambiar("campo", e.target.value)}>
         <option value="">Todos los campos</option>
         {camposVisibles.map((c) => (

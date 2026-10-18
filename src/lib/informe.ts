@@ -1,11 +1,15 @@
 import "server-only";
 import { margenBruto } from "./calculos";
 import { costosPorLote, laboresDetalladas, otrosGastosDelLote, type CostoLote } from "./consultas";
-import { obtenerDatos } from "./datos";
+import { datosDe, type Alcance } from "./datos";
 import { listarRecetas } from "./recetas";
 
-/** Qué entra en el informe (todo opcional: sin filtros es la campaña completa). */
+/** Qué entra en el informe (todo opcional: sin filtros son todos los cultivos en curso). */
 export type FiltroInforme = {
+  /** Campaña completa (en curso y cerrados); sin esto, los cultivos en curso. */
+  campania?: number;
+  /** Un solo cultivo (ciclo), para el informe de cierre. */
+  ciclo?: number;
   productor?: number;
   campo?: number;
   lote?: number;
@@ -18,6 +22,8 @@ export type Agrupacion = "productor" | "campo" | "cultivo" | "lote";
 export function leerFiltro(sp: Record<string, string | string[] | undefined>): FiltroInforme {
   const entero = (v: unknown) => (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : undefined);
   return {
+    campania: entero(sp.campania),
+    ciclo: entero(sp.ciclo),
     productor: entero(sp.productor),
     campo: entero(sp.campo),
     lote: entero(sp.lote),
@@ -34,9 +40,13 @@ export const consultaFiltro = (f: FiltroInforme) =>
 
 const vacio = () => ({ ha: 0, insumos: 0, labores: 0, cosecha: 0, otros: 0, total: 0 });
 
+export const alcanceDe = (f: FiltroInforme): Alcance =>
+  f.ciclo ? `ciclo:${f.ciclo}` : f.campania ? `campania:${f.campania}` : "en_curso";
+
 export async function armarInforme(filtro: FiltroInforme) {
-  const datos = await obtenerDatos();
-  const todas = await costosPorLote();
+  const datos = await datosDe(alcanceDe(filtro));
+  // Solo los lotes con un cultivo en lo elegido (los demás no tienen nada que informar).
+  const todas = (await costosPorLote(datos)).filter((f) => f.lote.cicloId);
   const filas = todas.filter(
     (f) =>
       (!filtro.productor || f.productorId === filtro.productor) &&
@@ -45,8 +55,9 @@ export async function armarInforme(filtro: FiltroInforme) {
       (!filtro.cultivo || f.lote.cultivo.split("/").includes(filtro.cultivo)),
   );
   const ids = new Set(filas.map((f) => f.lote.id));
-  const labores = (await laboresDetalladas()).filter((l) => ids.has(l.loteId));
-  const recetas = (await listarRecetas()).filter((r) => ids.has(r.loteId));
+  const labores = (await laboresDetalladas(undefined, datos)).filter((l) => ids.has(l.loteId));
+  const ciclosIds = new Set((datos.ciclos ?? []).map((c) => c.id));
+  const recetas = (await listarRecetas()).filter((r) => ids.has(r.loteId) && ciclosIds.has(r.cicloId));
 
   const totales = vacio();
   for (const f of filas) {
@@ -111,7 +122,10 @@ export async function armarInforme(filtro: FiltroInforme) {
   const productor = datos.productores?.find((p) => p.id === filtro.productor);
   const campo = datos.campos.find((c) => c.id === filtro.campo);
   const lote = datos.lotes.find((l) => l.id === filtro.lote);
+  const ciclo = filtro.ciclo ? datos.ciclos?.find((c) => c.id === filtro.ciclo) : undefined;
+  const loteDelCiclo = ciclo && datos.lotes.find((l) => l.id === ciclo.loteId);
   const partes = [
+    ciclo && `${ciclo.cultivo} · ${loteDelCiclo?.codigo ?? ""} ${loteDelCiclo?.nombre ?? ""}`.trim(),
     productor?.nombre,
     campo?.nombre,
     lote && `Lote ${lote.codigo} ${lote.nombre}`.trim(),
@@ -122,6 +136,13 @@ export async function armarInforme(filtro: FiltroInforme) {
     datos,
     filtro,
     titulo: partes.length ? partes.join(" · ") : "Todos los campos",
+    /** Título del documento: cierre de un cultivo, una campaña o lo que está en curso. */
+    encabezado: ciclo
+      ? `Informe de cierre · Campaña ${ciclo.campania}`
+      : filtro.campania
+        ? `Informe de campaña ${datos.campania}`
+        : `Cultivos en curso · ${datos.campania}`,
+    ciclo,
     filas,
     labores,
     recetas,

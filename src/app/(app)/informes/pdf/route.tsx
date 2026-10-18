@@ -47,6 +47,6 @@ export async function GET(request: Request) {
   const pdf = await renderToBuffer(
     <InformePdf informe={informe} fotos={fotos} mapas={mapas} logo={logo} ingeniero={ingeniero} />,
   );
-  const nombre = `Informe ${informe.datos.campania.replace("/", "-")} ${informe.titulo}.pdf`;
+  const nombre = `${informe.encabezado} ${informe.titulo}.pdf`.replace(/\//g, "-");
   return respuestaPdf(pdf, nombre);
 }

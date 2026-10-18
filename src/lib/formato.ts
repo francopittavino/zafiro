@@ -26,6 +26,12 @@ export const numeroEditable = (valor: number) => num(valor, 4).replace(/\./g, ""
 /** Fecha de hoy en formato ISO local ("2026-10-01"). */
 export const hoyIso = () => new Date().toLocaleDateString("en-CA");
 
+/** Campaña agrícola de una fecha: de junio a mayo (octubre 2026 → "2026/27", marzo 2026 → "2025/26"). */
+export function campaniaSugerida(fecha = new Date()) {
+  const anio = fecha.getMonth() >= 5 ? fecha.getFullYear() : fecha.getFullYear() - 1;
+  return `${anio}/${String((anio + 1) % 100).padStart(2, "0")}`;
+}
+
 /** "2025-01-21" → "21/01/25" */
 export function fechaCorta(iso: string) {
   const [a, m, d] = iso.split("-");

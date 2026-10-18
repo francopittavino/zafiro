@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { campos, fotos, lotes } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
 import { modoDemo } from "@/lib/modo-demo";
-import { borrarArchivo, fotosConfiguradas, subirArchivo } from "@/lib/almacenamiento";
+import { borrarArchivo, fotosConfiguradas, mensajeAlmacenamiento, subirArchivo } from "@/lib/almacenamiento";
 
 type Resultado = { ok: true } | { ok: false; error: string };
 
@@ -46,7 +46,11 @@ export async function subirFoto(formulario: FormData): Promise<Resultado> {
   const extension = archivo.type === "image/png" ? "png" : archivo.type === "image/webp" ? "webp" : "jpg";
   const ruta = `${tipo}s/${destinoId}/${Date.now()}-${randomBytes(4).toString("hex")}.${extension}`;
 
-  await subirArchivo(ruta, archivo);
+  try {
+    await subirArchivo(ruta, archivo);
+  } catch (error) {
+    return { ok: false, error: mensajeAlmacenamiento(error) };
+  }
   try {
     const [nueva] = await db
       .insert(fotos)

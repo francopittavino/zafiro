@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { FileUp, Trash2 } from "lucide-react";
 import type { Campo, CampoPersonalizado, Lote, Producto } from "@/lib/datos";
 import type { Receta } from "@/lib/recetas";
 import { MasDatos, areaTexto, entrada, etiqueta } from "@/components/app/altas";
 import { CamposExtra, leerExtras } from "@/components/app/campos-extra";
 import { NOMBRE_CATEGORIA, hoyIso, leerNumero, num, numeroEditable } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { guardarReceta } from "./acciones";
+import { guardarReceta, subirRecetaOficial } from "./acciones";
 
 type Linea = { clave: number; productoId: number; dosis: string };
 
@@ -44,6 +44,8 @@ export function FormularioReceta({
   );
   const [errores, setErrores] = useState<string[]>([]);
   const [guardando, iniciar] = useTransition();
+  /** PDF de la receta oficial de la provincia: se sube después de guardar la receta. */
+  const [oficial, setOficial] = useState<File | null>(null);
   const lote = lotes.find((l) => String(l.id) === loteId);
   const haNum = leerNumero(superficie) || 0;
   const extras = personalizados.filter((c) => c.entidad === "receta");
@@ -72,6 +74,8 @@ export function FormularioReceta({
     for (const l of lineas)
       if (!(leerNumero(l.dosis) > 0)) faltan.push(`Falta la dosis de ${productos.find((p) => p.id === l.productoId)?.nombre}.`);
     setErrores(faltan);
+    if (oficial && oficial.type !== "application/pdf") faltan.push("La receta oficial tiene que ser un PDF.");
+    if (oficial && oficial.size > 10 * 1024 * 1024) faltan.push("El PDF de la receta oficial pesa más de 10 MB.");
     if (faltan.length) return window.scrollTo({ top: 0, behavior: "smooth" });
 
     iniciar(async () => {
@@ -97,6 +101,14 @@ export function FormularioReceta({
       if (!r.ok) {
         setErrores([r.error]);
         return window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      if (r.id && oficial) {
+        const datos = new FormData();
+        datos.set("recetaId", String(r.id));
+        datos.set("archivo", oficial);
+        const subida = await subirRecetaOficial(datos);
+        // La receta ya quedó guardada: el PDF se puede volver a subir desde su ficha.
+        if (!subida.ok) window.alert(`La receta se guardó, pero el PDF oficial no: ${subida.error}`);
       }
       router.push(r.id ? `/recetas/${r.id}` : "/recetas");
     });
@@ -125,8 +137,8 @@ export function FormularioReceta({
                 {lotes
                   .filter((l) => l.campoId === c.id)
                   .map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.codigo} · {l.nombre} ({num(l.ha, 0)} ha)
+                    <option key={l.id} value={l.id} disabled={!l.cicloId && String(l.id) !== loteId}>
+                      {l.codigo} · {l.nombre} ({num(l.ha, 0)} ha){l.cicloId ? "" : " · sin cultivo"}
                     </option>
                   ))}
               </optgroup>
@@ -177,6 +189,26 @@ export function FormularioReceta({
               defaultValue={inicial?.caudalLHa != null ? numeroEditable(inicial.caudalLHa) : ""}
             />
           </label>
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold">Receta oficial de la provincia (PDF)</p>
+          <label className="bg-card hover:bg-muted flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 text-sm has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+            <FileUp className="text-zafiro size-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              {oficial
+                ? oficial.name
+                : inicial?.archivoOficial
+                  ? "Ya está cargada: elegí otro PDF para reemplazarla"
+                  : "Elegí el PDF de la receta oficial"}
+            </span>
+            <input
+              type="file"
+              accept="application/pdf"
+              className="sr-only"
+              onChange={(e) => setOficial(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <p className="text-muted-foreground text-xs">Al exportar, sale pegada al resumen en el mismo PDF.</p>
         </div>
         <label className={etiqueta}>
           Recomendaciones

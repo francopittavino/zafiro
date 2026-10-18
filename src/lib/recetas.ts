@@ -12,6 +12,9 @@ export type Receta = {
   numero: number;
   fecha: string;
   loteId: number;
+  cicloId: number;
+  /** Ruta del PDF de la receta oficial de la provincia, si se subió. */
+  archivoOficial: string | null;
   estado: EstadoReceta;
   numeroOficial: string | null;
   superficieHa: number | null;
@@ -55,6 +58,8 @@ export async function listarRecetas(filtro?: { id?: number }): Promise<Receta[]>
     numero: r.numero,
     fecha: r.fecha,
     loteId,
+    cicloId: r.cicloId,
+    archivoOficial: r.archivoOficial,
     estado: r.estado,
     numeroOficial: r.numeroOficial,
     superficieHa: n(r.superficieHa),

@@ -13,10 +13,10 @@ import {
   type Dibujo,
 } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
-import { campaniaActual, type DatosAplicacion } from "@/lib/datos";
+import type { DatosAplicacion } from "@/lib/datos";
 import { limpiarExtras } from "@/lib/extras";
 import { dibujoValido } from "@/lib/dibujo";
-import { cicloDelLote, type Tx } from "@/lib/ciclos";
+import { SIN_CULTIVO, cicloParaRegistro, type Tx } from "@/lib/ciclos";
 import { modoDemo } from "@/lib/modo-demo";
 
 export type DatosLabor = {
@@ -110,12 +110,16 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
   if (laborId !== undefined && !Number.isInteger(laborId)) return { ok: false, error: "Labor inválida." };
   if (modoDemo()) return { ok: true, demo: true };
 
-  const campania = await campaniaActual();
-  if (!campania) return { ok: false, error: "No hay una campaña creada." };
+  const anterior =
+    laborId === undefined
+      ? undefined
+      : (await db.select({ cicloId: labores.cicloId }).from(labores).where(eq(labores.id, laborId)))[0]?.cicloId;
+  const ciclo = await cicloParaRegistro(db, labor.loteId, anterior);
+  if (!ciclo) return { ok: false, error: SIN_CULTIVO };
   const extras = await limpiarExtras("labor", labor.extras);
 
   const guardada = await dbTx.transaction(async (tx) => {
-    const cicloId = await cicloDelLote(tx, labor.loteId, campania.id);
+    const cicloId = ciclo.id;
     const [{ campoId }] = await tx.select({ campoId: lotes.campoId }).from(lotes).where(eq(lotes.id, labor.loteId));
     const aporteId = await aporteDeNombre(tx, labor.aporte);
     const contratistaId = labor.modalidad === "contratista" ? await contratistaDeNombre(tx, labor.contratista) : null;

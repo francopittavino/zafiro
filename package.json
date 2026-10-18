@@ -11,7 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:cargar": "node scripts/cargar-datos.mjs"
+    "db:cargar": "node scripts/cargar-datos.mjs",
+    "db:borrar-trabajos": "node scripts/borrar-trabajos.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -22,6 +23,7 @@
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.49.0",
     "next": "16.3.8",
+    "pdf-lib": "^1.17.1",
     "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",

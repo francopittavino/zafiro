@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   aportes,
@@ -29,7 +29,8 @@ import {
 import { modoDemo } from "./modo-demo";
 
 /**
- * Datos de la campaña actual, ya convertidos a números para las pantallas.
+ * Datos de los cultivos en curso (o de una campaña o un ciclo ya cerrado, para su informe),
+ * ya convertidos a números para las pantallas.
  * Salen de la base; en modo demo, de `datos-demo/zafiro.json` (ver scripts/importar-planilla.py).
  * Los campos opcionales (`?`) no están en el JSON del modo demo.
  */
@@ -80,6 +81,8 @@ export type Campo = {
 export type Lote = {
   id: number;
   campoId: number;
+  /** Cultivo (ciclo) del lote dentro de lo cargado; null si no tiene ninguno en curso. */
+  cicloId?: number | null;
   codigo: string;
   nombre: string;
   ha: number;
@@ -129,6 +132,7 @@ export type DatosAplicacion = {
 export type Labor = {
   id: number;
   loteId: number;
+  cicloId?: number;
   fecha: string;
   tipoLaborId: number | null;
   ha: number;
@@ -177,8 +181,29 @@ export type Catalogo = { id: number; nombre: string };
 /** Existencia de un insumo en un campo (suma de movimientos). */
 export type Existencia = { campoId: number; productoId: number; cantidad: number };
 
+/** Un cultivo en un lote: en curso hasta que se cierra a mano después de la cosecha. */
+export type Ciclo = {
+  id: number;
+  loteId: number;
+  cultivo: string;
+  variedad: string | null;
+  fechaSiembra: string | null;
+  campaniaId: number;
+  campania: string;
+  estado: "en_curso" | "cerrado";
+  fechaCierre: string | null;
+};
+
+/**
+ * Qué datos se cargan: los cultivos en curso (lo de todos los días), una campaña completa
+ * (en curso y cerrados) o un solo ciclo (el informe de cierre). Texto para poder memoizarlo.
+ */
+export type Alcance = "en_curso" | `campania:${number}` | `ciclo:${number}`;
+
 export type Datos = {
   campania: string;
+  alcance?: Alcance;
+  ciclos?: Ciclo[];
   cotizacion: { tipoCambio: number; precioGasoil: number };
   productores?: Productor[];
   campos: Campo[];
@@ -227,9 +252,40 @@ export const campaniaActual = cache(async () => {
   return campania ?? null;
 });
 
-async function datosDeLaBase(): Promise<Datos> {
-  const campania = await campaniaActual();
-  if (!campania) return VACIO;
+/** Todas las campañas, de la más nueva a la más vieja (para los informes y al iniciar un cultivo). */
+export const listarCampanias = cache(async () =>
+  modoDemo()
+    ? []
+    : db.select({ id: campanias.id, nombre: campanias.nombre }).from(campanias).orderBy(desc(campanias.nombre)),
+);
+
+function condicionCiclos(alcance: Alcance): SQL {
+  const [tipo, id] = alcance.split(":");
+  if (tipo === "campania") return eq(ciclos.campaniaId, Number(id));
+  if (tipo === "ciclo") return eq(ciclos.id, Number(id));
+  return eq(ciclos.estado, "en_curso");
+}
+
+function aCiclo({ ciclo: c, campania }: { ciclo: typeof ciclos.$inferSelect; campania: string }): Ciclo {
+  return {
+    id: c.id,
+    loteId: c.loteId,
+    cultivo: c.cultivo,
+    variedad: c.variedad,
+    fechaSiembra: c.fechaSiembra,
+    campaniaId: c.campaniaId,
+    campania,
+    estado: c.estado,
+    fechaCierre: c.fechaCierre,
+  };
+}
+
+async function datosDeLaBase(alcance: Alcance): Promise<Datos> {
+  const actual = await campaniaActual();
+  if (!actual) return VACIO;
+  const cond = condicionCiclos(alcance);
+  const idsCiclos = db.select({ id: ciclos.id }).from(ciclos).where(cond);
+  const campaniasDeLosCiclos = db.select({ id: ciclos.campaniaId }).from(ciclos).where(cond);
 
   const [
     filasProductores,
@@ -253,7 +309,12 @@ async function datosDeLaBase(): Promise<Datos> {
     db.select().from(productores).where(eq(productores.activo, true)).orderBy(productores.nombre),
     db.select().from(campos).orderBy(campos.nombre),
     db.select().from(lotes).where(eq(lotes.activo, true)).orderBy(lotes.codigo),
-    db.select().from(ciclos).where(eq(ciclos.campaniaId, campania.id)),
+    db
+      .select({ ciclo: ciclos, campania: campanias.nombre })
+      .from(ciclos)
+      .innerJoin(campanias, eq(ciclos.campaniaId, campanias.id))
+      .where(cond)
+      .orderBy(ciclos.id),
     db.select().from(productos).where(eq(productos.activo, true)).orderBy(productos.nombreComercial),
     // Precio vigente: el de fecha más reciente de cada producto.
     db
@@ -284,7 +345,7 @@ async function datosDeLaBase(): Promise<Datos> {
       .innerJoin(ciclos, eq(labores.cicloId, ciclos.id))
       .leftJoin(aportes, eq(labores.aporteId, aportes.id))
       .leftJoin(contratistas, eq(labores.contratistaId, contratistas.id))
-      .where(eq(ciclos.campaniaId, campania.id))
+      .where(cond)
       .orderBy(desc(labores.fecha), desc(labores.id)),
     db
       .select({
@@ -296,14 +357,20 @@ async function datosDeLaBase(): Promise<Datos> {
       .from(laborInsumos)
       .innerJoin(labores, eq(laborInsumos.laborId, labores.id))
       .innerJoin(ciclos, eq(labores.cicloId, ciclos.id))
-      .where(eq(ciclos.campaniaId, campania.id))
+      .where(cond)
       .orderBy(laborInsumos.id),
     db
       .select({ gasto: gastos, loteId: ciclos.loteId, categoria: categoriasGasto.nombre })
       .from(gastos)
       .innerJoin(categoriasGasto, eq(gastos.categoriaId, categoriasGasto.id))
       .leftJoin(ciclos, eq(gastos.cicloId, ciclos.id))
-      .where(eq(gastos.campaniaId, campania.id))
+      // Los del lote van con su ciclo; los del campo y los generales, con la campaña de esos ciclos.
+      .where(
+        or(
+          inArray(gastos.cicloId, idsCiclos),
+          and(isNull(gastos.cicloId), inArray(gastos.campaniaId, campaniasDeLosCiclos)),
+        ),
+      )
       .orderBy(desc(gastos.fecha), desc(gastos.id)),
     // El stock no depende de la campaña: es lo que hay hoy en cada campo.
     db
@@ -317,10 +384,14 @@ async function datosDeLaBase(): Promise<Datos> {
   ]);
 
   const precios = new Map(filasPrecios.map((p) => [p.productoId, Number(p.precio)]));
-  const ciclosDeLote = (loteId: number) => filasCiclos.filter((c) => c.loteId === loteId);
+  const ciclosDeLote = (loteId: number) => filasCiclos.map((f) => f.ciclo).filter((c) => c.loteId === loteId);
+  const nombresCampanias = [...new Set(filasCiclos.map((f) => f.campania))].sort();
 
   return {
-    campania: campania.nombre,
+    // En curso puede haber cultivos de dos campañas (ej. 2025/26 y 2026/27): se muestran juntas.
+    campania: nombresCampanias.length ? nombresCampanias.join(" · ") : actual.nombre,
+    alcance,
+    ciclos: filasCiclos.map(aCiclo),
     cotizacion: {
       tipoCambio: cotizacion ? Number(cotizacion.tipoCambio) : 1,
       precioGasoil: cotizacion ? Number(cotizacion.precioGasoil) : 0,
@@ -351,6 +422,7 @@ async function datosDeLaBase(): Promise<Datos> {
       return {
         id: l.id,
         campoId: l.campoId,
+        cicloId: delLote.at(-1)?.id ?? null,
         codigo: l.codigo ?? "",
         nombre: l.nombre,
         ha: Number(l.superficieHa),
@@ -404,6 +476,7 @@ async function datosDeLaBase(): Promise<Datos> {
     labores: filasLabores.map(({ labor, loteId, aporte, contratista }) => ({
       id: labor.id,
       loteId,
+      cicloId: labor.cicloId,
       fecha: labor.fecha,
       tipoLaborId: labor.tipoLaborId,
       ha: Number(labor.superficieHa),
@@ -431,6 +504,7 @@ async function datosDeLaBase(): Promise<Datos> {
       extras: labor.extras,
     })),
     cosechas: filasCiclos
+      .map((f) => f.ciclo)
       .filter((c) => c.rindeKgHa !== null && c.precioPizarra !== null)
       .map((c) => ({
         loteId: c.loteId,
@@ -455,9 +529,24 @@ async function datosDeLaBase(): Promise<Datos> {
   };
 }
 
-export const obtenerDatos = cache(async (): Promise<Datos> =>
-  modoDemo() ? datosDemo() : datosDeLaBase(),
+export const datosDe = cache(async (alcance: Alcance): Promise<Datos> =>
+  modoDemo() ? datosDemo() : datosDeLaBase(alcance),
 );
+
+/** Lo de todos los días: los cultivos en curso de cada lote. */
+export const obtenerDatos = () => datosDe("en_curso");
+
+/** Todos los cultivos de un lote (en curso y cerrados), del más nuevo al más viejo. */
+export async function ciclosDelLote(loteId: number): Promise<Ciclo[]> {
+  if (modoDemo()) return [];
+  const filas = await db
+    .select({ ciclo: ciclos, campania: campanias.nombre })
+    .from(ciclos)
+    .innerJoin(campanias, eq(ciclos.campaniaId, campanias.id))
+    .where(eq(ciclos.loteId, loteId))
+    .orderBy(desc(ciclos.id));
+  return filas.map(aCiclo);
+}
 
 export type Movimiento = {
   id: number;
@@ -519,4 +608,32 @@ export async function historialPrecios(): Promise<Record<number, PrecioHistorico
   const historial: Record<number, PrecioHistorico[]> = {};
   for (const f of filas) (historial[f.productoId] ??= []).push({ fecha: f.fecha, precio: Number(f.precio) });
   return historial;
+}
+
+export type CicloCerrado = Ciclo & { lote: string; campoId: number; campo: string };
+
+/** Cultivos ya cerrados (para buscar su informe de cierre), del cierre más nuevo al más viejo. */
+export async function ciclosCerrados(): Promise<CicloCerrado[]> {
+  if (modoDemo()) return [];
+  const filas = await db
+    .select({
+      ciclo: ciclos,
+      campania: campanias.nombre,
+      codigo: lotes.codigo,
+      lote: lotes.nombre,
+      campoId: lotes.campoId,
+      campo: campos.nombre,
+    })
+    .from(ciclos)
+    .innerJoin(campanias, eq(ciclos.campaniaId, campanias.id))
+    .innerJoin(lotes, eq(ciclos.loteId, lotes.id))
+    .innerJoin(campos, eq(lotes.campoId, campos.id))
+    .where(eq(ciclos.estado, "cerrado"))
+    .orderBy(desc(ciclos.fechaCierre), desc(ciclos.id));
+  return filas.map((f) => ({
+    ...aCiclo(f),
+    lote: `${f.codigo ?? ""} ${f.lote}`.trim(),
+    campoId: f.campoId,
+    campo: f.campo,
+  }));
 }

@@ -8,11 +8,12 @@ import { GaleriaFotos } from "@/components/app/galeria-fotos";
 import { valoresExtra } from "@/components/app/campos-extra";
 import { fotosDe, mapasDeCampos } from "@/lib/fotos";
 import { Leyenda, VistaMapa } from "@/components/app/mapa";
-import { obtenerDatos } from "@/lib/datos";
+import { ciclosDelLote, listarCampanias, obtenerDatos } from "@/lib/datos";
 import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
 import { fechaCorta, num, usd } from "@/lib/formato";
 import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
 import { BotonCosecha } from "./cosecha";
+import { BotonCerrarCultivo, BotonIniciarCultivo, HistorialCultivos } from "./cultivo";
 
 export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   const { id } = await params;
@@ -27,7 +28,14 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   const costos = costosDelCiclo(labores, otros.total);
   const margen = await margenDelLote(lote.id);
   const cosecha = datos.cosechas.find((c) => c.loteId === lote.id);
-  const [galeria, mapas] = await Promise.all([fotosDe({ tipo: "lote", id: lote.id }), mapasDeCampos(campo ? [campo] : [])]);
+  const [galeria, mapas, ciclos, campanias] = await Promise.all([
+    fotosDe({ tipo: "lote", id: lote.id }),
+    mapasDeCampos(campo ? [campo] : []),
+    ciclosDelLote(lote.id),
+    listarCampanias(),
+  ]);
+  const enCurso = ciclos.find((c) => c.estado === "en_curso");
+  const anteriores = ciclos.filter((c) => c.estado === "cerrado");
   const mapa = campo && mapas.get(campo.id);
   const lotesDelCampo = datos.lotes.filter((l) => l.campoId === lote.campoId);
   const manchones = labores.flatMap((l) => l.zonas ?? []);
@@ -63,12 +71,32 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
 
       <div className="grid gap-4 p-4 md:grid-cols-[1fr_1.4fr] md:items-start md:p-0">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="bg-primary text-primary-foreground rounded-full px-3 py-1.5 text-sm font-bold">
-              Campaña {datos.campania}
-            </span>
-            <ChipCultivo cultivo={lote.cultivo} />
-          </div>
+          {enCurso ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="bg-primary text-primary-foreground rounded-full px-3 py-1.5 text-sm font-bold">
+                Campaña {enCurso.campania}
+              </span>
+              <ChipCultivo cultivo={enCurso.cultivo} />
+              <span className="text-muted-foreground text-xs">en curso</span>
+              <span className="ml-auto">
+                <BotonCerrarCultivo loteId={lote.id} cultivo={enCurso.cultivo} sinCosecha={!cosecha} />
+              </span>
+            </div>
+          ) : (
+            <section className="bg-card flex flex-col gap-3 rounded-xl border p-4 text-sm">
+              <p>
+                <span className="font-bold">Sin cultivo en curso.</span>{" "}
+                <span className="text-muted-foreground">
+                  Iniciá el próximo para registrar labores, recetas y gastos en este lote.
+                </span>
+              </p>
+              <BotonIniciarCultivo
+                loteId={lote.id}
+                campanias={campanias.map((c) => c.nombre)}
+                sugerida={anteriores[0]?.campania ?? campanias[0]?.nombre ?? ""}
+              />
+            </section>
+          )}
 
           {(ficha.length > 0 || ubicacion || lote.notas) && (
             <section className="bg-card rounded-xl border p-4 text-sm">
@@ -89,69 +117,73 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
             </section>
           )}
 
-          <section className="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4">
-            <div>
-              <p className="text-muted-foreground text-xs">Costo total</p>
-              <p className="text-xl font-black tabular-nums">USD {usd(costos.total)}</p>
-              <p className="text-muted-foreground text-xs">{usd(costos.total / lote.ha)} USD/ha</p>
-            </div>
-            {margen ? (
-              <Link href={`/lotes/${lote.id}/margen`} className="hover:bg-muted/60 -m-2 rounded-lg p-2">
-                <p className="text-muted-foreground text-xs">Margen bruto</p>
-                <p className={`text-xl font-black tabular-nums ${margen.resultado.margen < 0 ? "text-destructive" : "text-positivo"}`}>
-                  USD {usd(margen.resultado.margen)}
-                </p>
-                <p className="text-zafiro text-xs font-bold">Ver detalle →</p>
-              </Link>
-            ) : (
+          {enCurso && (
+            <section className="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4">
               <div>
-                <p className="text-muted-foreground text-xs">Margen bruto</p>
-                <p className="text-muted-foreground text-sm">Falta cargar la cosecha</p>
+                <p className="text-muted-foreground text-xs">Costo total</p>
+                <p className="text-xl font-black tabular-nums">USD {usd(costos.total)}</p>
+                <p className="text-muted-foreground text-xs">{usd(costos.total / lote.ha)} USD/ha</p>
               </div>
-            )}
-            {costos.total > 0 && (
-              <>
-                <div className="col-span-2 flex h-2 overflow-hidden rounded-full">
-                  {partes.map((p) => (
-                    <span key={p.texto} className={p.clase} style={{ width: `${(p.valor / costos.total) * 100}%` }} />
-                  ))}
+              {margen ? (
+                <Link href={`/lotes/${lote.id}/margen`} className="hover:bg-muted/60 -m-2 rounded-lg p-2">
+                  <p className="text-muted-foreground text-xs">Margen bruto</p>
+                  <p className={`text-xl font-black tabular-nums ${margen.resultado.margen < 0 ? "text-destructive" : "text-positivo"}`}>
+                    USD {usd(margen.resultado.margen)}
+                  </p>
+                  <p className="text-zafiro text-xs font-bold">Ver detalle →</p>
+                </Link>
+              ) : (
+                <div>
+                  <p className="text-muted-foreground text-xs">Margen bruto</p>
+                  <p className="text-muted-foreground text-sm">Falta cargar la cosecha</p>
                 </div>
-                <ul className="text-muted-foreground col-span-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                  {partes.map((p) => (
-                    <li key={p.texto} className="flex items-center gap-1.5">
-                      <span className={`${p.clase} size-2 rounded-full`} aria-hidden />
-                      {p.texto} {usd(p.valor)}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <div className="col-span-2 grid">
-              <BotonCosecha loteId={lote.id} inicial={cosecha} />
-            </div>
-            {cosecha && (
-              <p className="text-muted-foreground col-span-2 -mt-2 text-xs">
-                Rinde {num(cosecha.rindeKgHa, 0)} kg/ha · {usd(cosecha.precioPizarra)} USD/tn
-              </p>
-            )}
-          </section>
+              )}
+              {costos.total > 0 && (
+                <>
+                  <div className="col-span-2 flex h-2 overflow-hidden rounded-full">
+                    {partes.map((p) => (
+                      <span key={p.texto} className={p.clase} style={{ width: `${(p.valor / costos.total) * 100}%` }} />
+                    ))}
+                  </div>
+                  <ul className="text-muted-foreground col-span-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    {partes.map((p) => (
+                      <li key={p.texto} className="flex items-center gap-1.5">
+                        <span className={`${p.clase} size-2 rounded-full`} aria-hidden />
+                        {p.texto} {usd(p.valor)}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="col-span-2 grid">
+                <BotonCosecha loteId={lote.id} inicial={cosecha} />
+              </div>
+              {cosecha && (
+                <p className="text-muted-foreground col-span-2 -mt-2 text-xs">
+                  Rinde {num(cosecha.rindeKgHa, 0)} kg/ha · {usd(cosecha.precioPizarra)} USD/tn
+                </p>
+              )}
+            </section>
+          )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              href={`/registrar?lote=${lote.id}`}
-              className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
-            >
-              <Plus className="size-5" aria-hidden />
-              Labor
-            </Link>
-            <Link
-              href={`/recetas/nueva?lote=${lote.id}`}
-              className="bg-card hover:bg-muted flex h-12 items-center justify-center gap-2 rounded-xl border font-bold"
-            >
-              <FileText className="size-5" aria-hidden />
-              Receta
-            </Link>
-          </div>
+          {enCurso && (
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href={`/registrar?lote=${lote.id}`}
+                className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
+              >
+                <Plus className="size-5" aria-hidden />
+                Labor
+              </Link>
+              <Link
+                href={`/recetas/nueva?lote=${lote.id}`}
+                className="bg-card hover:bg-muted flex h-12 items-center justify-center gap-2 rounded-xl border font-bold"
+              >
+                <FileText className="size-5" aria-hidden />
+                Receta
+              </Link>
+            </div>
+          )}
 
           {mapa && lote.dibujo && (
             <section className="flex flex-col gap-2">
@@ -163,6 +195,8 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
               )}
             </section>
           )}
+
+          <HistorialCultivos ciclos={anteriores} hayEnCurso={Boolean(enCurso)} />
 
           <GaleriaFotos destino={{ tipo: "lote", id: lote.id }} {...galeria} />
         </div>

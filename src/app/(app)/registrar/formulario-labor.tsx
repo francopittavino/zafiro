@@ -386,8 +386,9 @@ export function FormularioLabor({
                   {lotes
                     .filter((l) => l.campoId === c.id)
                     .map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.codigo} · {l.nombre} ({num(l.ha, 0)} ha)
+                      // Sin cultivo en curso no se puede registrar (hay que iniciarlo en la ficha del lote).
+                      <option key={l.id} value={l.id} disabled={!l.cicloId && String(l.id) !== loteId}>
+                        {l.codigo} · {l.nombre} ({num(l.ha, 0)} ha){l.cicloId ? "" : " · sin cultivo"}
                       </option>
                     ))}
                 </optgroup>

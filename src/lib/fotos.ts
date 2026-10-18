@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { fotos, type Dibujo } from "@/db/schema";
 import type { Campo, Lote } from "./datos";
 import { modoDemo } from "./modo-demo";
-import { fotosConfiguradas, urlsFirmadas } from "./almacenamiento";
+import { fotosConfiguradas, mensajeAlmacenamiento, urlsFirmadas } from "./almacenamiento";
 
 export type Destino = { tipo: "campo" | "lote"; id: number };
 
@@ -30,7 +30,11 @@ export async function mapasDeCampos(campos: { id: number; fotoMapaId?: number | 
     .select()
     .from(fotos)
     .where(inArray(fotos.id, conMapa.map((c) => c.fotoMapaId!)));
-  const urls = await urlsFirmadas(filas.map((f) => f.ruta));
+  // Si el almacenamiento falla (variables mal cargadas), las pantallas siguen sin el mapa.
+  const urls = await urlsFirmadas(filas.map((f) => f.ruta)).catch((error) => {
+    console.error("[fotos]", mensajeAlmacenamiento(error));
+    return new Map<string, string>();
+  });
   for (const c of conMapa) {
     const f = filas.find((x) => x.id === c.fotoMapaId);
     const url = f && urls.get(f.ruta);
@@ -72,7 +76,12 @@ export async function fotosDe(destino: Destino): Promise<{ disponible: boolean; 
     .where(destino.tipo === "campo" ? eq(fotos.campoId, destino.id) : eq(fotos.loteId, destino.id))
     .orderBy(desc(fotos.fecha), desc(fotos.id));
 
-  const urls = await urlsFirmadas(filas.map((f) => f.ruta));
+  let urls: Map<string, string>;
+  try {
+    urls = await urlsFirmadas(filas.map((f) => f.ruta));
+  } catch (error) {
+    return { disponible: false, motivo: mensajeAlmacenamiento(error), fotos: [] };
+  }
   return {
     disponible: true,
     fotos: filas
