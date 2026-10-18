@@ -59,12 +59,23 @@ function Lienzo({
   );
 }
 
-function Etiqueta({ dibujo, texto, fuerte }: { dibujo: Dibujo; texto: string; fuerte?: boolean }) {
+/** Código del lote y, debajo, el cultivo de la campaña. */
+function TextoLote({ lote }: { lote: LoteMapa }) {
+  const cultivo = lote.cultivo.split("/").pop()?.trim();
+  return (
+    <>
+      {lote.codigo || lote.nombre}
+      {cultivo && <span className="block text-[9px] leading-tight font-bold opacity-80">{cultivo}</span>}
+    </>
+  );
+}
+
+function Etiqueta({ dibujo, texto, fuerte }: { dibujo: Dibujo; texto: React.ReactNode; fuerte?: boolean }) {
   const [x, y] = centro(dibujo);
   return (
     <span
       className={cn(
-        "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] font-black whitespace-nowrap shadow",
+        "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-center text-[11px] font-black whitespace-nowrap shadow",
         fuerte ? "bg-primary text-primary-foreground" : "bg-white/90 text-black",
       )}
       style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
@@ -98,13 +109,13 @@ export function VistaMapa({
           <Link
             key={l.id}
             href={`/lotes/${l.id}`}
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-black whitespace-nowrap text-black shadow"
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-center text-[11px] font-black whitespace-nowrap text-black shadow"
             style={{ left: `${centro(l.dibujo!)[0] * 100}%`, top: `${centro(l.dibujo!)[1] * 100}%` }}
           >
-            {l.codigo || l.nombre}
+            <TextoLote lote={l} />
           </Link>
         ) : (
-          <Etiqueta key={l.id} dibujo={l.dibujo!} texto={l.codigo || l.nombre} fuerte={l.id === resaltado} />
+          <Etiqueta key={l.id} dibujo={l.dibujo!} texto={<TextoLote lote={l} />} fuerte={l.id === resaltado} />
         ),
       )}
     >

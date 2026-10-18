@@ -1,77 +1,15 @@
 import "server-only";
-import { Image, Polygon, Svg, Text, View } from "@react-pdf/renderer";
-import type { Dibujo } from "@/db/schema";
-import type { FotoMapa } from "@/lib/fotos";
-import { centro } from "@/lib/dibujo";
-import { colorCultivo } from "@/lib/colores-cultivo";
+import { Image, Text, View } from "@react-pdf/renderer";
+import type { MapaConLotes } from "@/lib/fotos";
 import type { armarInforme } from "@/lib/informe";
 import type { DatosIngeniero } from "@/lib/recetas";
 import { NOMBRE_CATEGORIA, fechaCorta, num, usd } from "@/lib/formato";
 import { COLOR, Datos, Documento, Hoja, Seccion, Tabla, estilos, type Logo } from "./comun";
+import { MapaCampoPdf } from "./mapa";
 
 type Informe = Awaited<ReturnType<typeof armarInforme>>;
 export type FotoPdf = { titulo: string; url: string; ancho: number | null; alto: number | null };
-export type MapaPdf = {
-  campo: string;
-  foto: FotoMapa;
-  lotes: { id: number; codigo: string; nombre: string; cultivo: string; dibujo: Dibujo }[];
-};
-
-/** Lugar máximo del mapa en la hoja (A4 menos márgenes), en puntos. */
-const ANCHO_MAPA = 523;
-const ALTO_MAPA = 340;
-
-/** Foto del campo con los lotes pintados (coordenadas en puntos: react-pdf no estira el SVG). */
-function MapaCampoPdf({ mapa }: { mapa: MapaPdf }) {
-  // Entra en el lugar disponible respetando la proporción de la foto.
-  const escala = Math.min(ANCHO_MAPA / mapa.foto.ancho, ALTO_MAPA / mapa.foto.alto);
-  const ancho = mapa.foto.ancho * escala;
-  const alto = mapa.foto.alto * escala;
-  const puntos = (d: Dibujo) => d.map(([x, y]) => `${x * ancho},${y * alto}`).join(" ");
-  const cultivos = [...new Set(mapa.lotes.map((l) => l.cultivo.split("/").pop()?.trim() || "Sin cultivo"))];
-  return (
-    <View wrap={false} style={{ marginBottom: 10 }}>
-      <Text style={{ fontFamily: "Helvetica-Bold", color: COLOR.zafiro, marginBottom: 3 }}>{mapa.campo}</Text>
-      <View style={{ position: "relative", width: ancho, height: alto }}>
-        {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de react-pdf, no de HTML */}
-        <Image src={mapa.foto.url} style={{ width: ancho, height: alto, objectFit: "cover" }} />
-        <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`} style={{ position: "absolute", top: 0, left: 0 }}>
-          {mapa.lotes.map((l) => (
-            <Polygon key={l.id} points={puntos(l.dibujo)} fill={colorCultivo(l.cultivo)} fillOpacity={0.45} stroke="white" strokeWidth={1.2} />
-          ))}
-        </Svg>
-        {mapa.lotes.map((l) => {
-          const [x, y] = centro(l.dibujo);
-          return (
-            <Text
-              key={l.id}
-              style={{
-                position: "absolute",
-                left: x * ancho - 30,
-                top: y * alto - 6,
-                width: 60,
-                textAlign: "center",
-                fontSize: 8,
-                fontFamily: "Helvetica-Bold",
-                color: "white",
-              }}
-            >
-              {l.codigo || l.nombre}
-            </Text>
-          );
-        })}
-      </View>
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-        {cultivos.map((c) => (
-          <View key={c} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <View style={{ width: 8, height: 8, backgroundColor: colorCultivo(c) }} />
-            <Text style={estilos.subtitulo}>{c}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
+export type MapaPdf = MapaConLotes;
 
 export function InformePdf({
   informe,
@@ -132,7 +70,7 @@ export function InformePdf({
         {mapas.length > 0 && (
           <Seccion titulo={mapas.length > 1 ? "Mapas" : "Mapa"}>
             {mapas.map((m) => (
-              <MapaCampoPdf key={m.campo} mapa={m} />
+              <MapaCampoPdf key={m.campo} mapa={m} resaltado={informe.lote?.id} />
             ))}
           </Seccion>
         )}

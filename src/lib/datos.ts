@@ -143,6 +143,8 @@ export type Labor = {
   costoHora?: number | null;
   aplicacion?: DatosAplicacion;
   zonas?: Dibujo[] | null;
+  /** Receta con la que se hizo (opcional). */
+  recetaId?: number | null;
   extras?: Extras | null;
 };
 export type Cosecha = {
@@ -425,6 +427,7 @@ async function datosDeLaBase(): Promise<Datos> {
         aplicador: labor.aplicador,
       },
       zonas: labor.zonas,
+      recetaId: labor.recetaId,
       extras: labor.extras,
     })),
     cosechas: filasCiclos

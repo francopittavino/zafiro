@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { Copy, Download, Pencil, Search, Trash2 } from "lucide-react";
+import { Copy, Download, FileDown, Pencil, Search, Trash2 } from "lucide-react";
 import type { LaborDetalle } from "@/lib/consultas";
 import { fechaCorta, mesAnio, num, usd, usd2 } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -215,9 +215,12 @@ function Acciones({ labor, compacto = false }: { labor: LaborDetalle; compacto?:
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={cn(compacto ? "flex gap-1 text-xs" : "grid grid-cols-3 border-t text-sm")}
+      className={cn(compacto ? "flex gap-1 text-xs" : "grid grid-cols-4 border-t text-sm")}
     >
-      <Link href={`/registrar?labor=${labor.id}`} className={cn(clase, "text-zafiro")}>
+      <a href={`/historial/${labor.id}/pdf`} target="_blank" rel="noreferrer" className={cn(clase, "text-zafiro")}>
+        <FileDown className="size-4" aria-hidden /> PDF
+      </a>
+      <Link href={`/registrar?labor=${labor.id}`} className={cn(clase, "text-zafiro", !compacto && "border-l")}>
         <Pencil className="size-4" aria-hidden /> Editar
       </Link>
       <Link href={`/registrar?duplicar=${labor.id}`} className={cn(clase, "text-zafiro", !compacto && "border-l")}>

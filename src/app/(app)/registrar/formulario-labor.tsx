@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { FileDown, Trash2 } from "lucide-react";
 import type { Dibujo } from "@/db/schema";
 import type {
   Campo,
@@ -13,7 +13,7 @@ import type {
   Lote,
   Producto,
 } from "@/lib/datos";
-import { NOMBRE_CATEGORIA, hoyIso, leerNumero, num, numeroEditable, usd2 } from "@/lib/formato";
+import { NOMBRE_CATEGORIA, fechaCorta, hoyIso, leerNumero, num, numeroEditable, usd2 } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { guardarLabor } from "./acciones";
 import { Dialogo } from "@/components/app/dialogo";
@@ -27,6 +27,15 @@ type Alta = "lote" | "labor" | "producto";
 
 type TipoLaborOpcion = { id: number; nombre: string; tarifa: number; detalle: string };
 type Linea = { clave: number; productoId: number; dosis: string; precio: string };
+/** Receta que se puede vincular a la labor (las del lote elegido). */
+export type RecetaOpcion = {
+  id: number;
+  numero: number;
+  loteId: number;
+  fecha: string;
+  objetivo: string | null;
+  items: { productoId: number; dosis: number }[];
+};
 
 /** Datos con los que arranca el formulario (al editar, duplicar o venir desde un lote). */
 export type ValoresIniciales = {
@@ -45,6 +54,7 @@ export type ValoresIniciales = {
   costoHora?: number | null;
   aplicacion?: DatosAplicacion;
   zonas?: Dibujo[] | null;
+  recetaId?: number | null;
   extras?: Record<string, string> | null;
   /** Si la labor guardada había descontado stock (al editar se mantiene). */
   descontoStock?: boolean;
@@ -77,6 +87,7 @@ export function FormularioLabor({
   personalizados,
   stock,
   mapas,
+  recetas,
   inicial,
   laborId,
 }: {
@@ -90,6 +101,7 @@ export function FormularioLabor({
   stock: Existencia[];
   /** Foto del mapa de cada campo (campoId → foto), para marcar manchones. */
   mapas: Record<number, FotoMapa>;
+  recetas: RecetaOpcion[];
   inicial?: ValoresIniciales;
   /** Si viene, el formulario edita esa labor en vez de crear una nueva. */
   laborId?: number;
@@ -118,6 +130,9 @@ export function FormularioLabor({
   const [recienAgregada, setRecienAgregada] = useState<number | null>(null);
   const [errores, setErrores] = useState<string[]>([]);
   const [aviso, setAviso] = useState("");
+  /** Última labor guardada, para ofrecer su PDF. */
+  const [guardadaId, setGuardadaId] = useState<number | null>(null);
+  const [recetaId, setRecetaId] = useState(inicial?.recetaId ? String(inicial.recetaId) : "");
   const [notas, setNotas] = useState(inicial?.notas ?? "");
   const [modalidad, setModalidad] = useState<"propia" | "contratista" | "">(inicial?.modalidad ?? "");
   const [contratista, setContratista] = useState(inicial?.contratista ?? "");
@@ -156,6 +171,7 @@ export function FormularioLabor({
   }
 
   const lote = lotes.find((l) => String(l.id) === loteId);
+  const recetasDelLote = recetas.filter((r) => String(r.loteId) === loteId);
   const tipo = tiposLabor.find((t) => String(t.id) === tipoId);
   const haNum = leerNumero(ha) || 0;
 
@@ -176,6 +192,8 @@ export function FormularioLabor({
   function elegirLote(id: string) {
     if (id === NUEVO) return setAlta("lote");
     setLoteId(id);
+    // La receta es de un lote: si se cambia de lote, deja de valer.
+    if (!recetas.some((r) => String(r.id) === recetaId && String(r.loteId) === id)) setRecetaId("");
     const nuevo = lotes.find((l) => String(l.id) === id);
     if (nuevo) setHa(numeroEditable(nuevo.ha));
   }
@@ -185,6 +203,21 @@ export function FormularioLabor({
     setTipoId(id);
     const nuevo = tiposLabor.find((t) => String(t.id) === id);
     if (nuevo) setCostoHa(numeroEditable(Math.round(nuevo.tarifa * 100) / 100));
+  }
+
+  function elegirReceta(id: string) {
+    setRecetaId(id);
+    const receta = recetas.find((r) => String(r.id) === id);
+    // Si todavía no hay productos, se cargan los de la receta (con el precio de lista).
+    if (!receta || lineas.length) return;
+    setLineas(
+      receta.items.flatMap((i, n) => {
+        const producto = productos.find((p) => p.id === i.productoId);
+        return producto
+          ? [{ clave: Date.now() + n, productoId: producto.id, dosis: numeroEditable(i.dosis), precio: numeroEditable(producto.precio) }]
+          : [];
+      }),
+    );
   }
 
   function agregarProducto(id: string) {
@@ -216,6 +249,7 @@ export function FormularioLabor({
     setHoras("");
     setZonas([]);
     setEnManchones(false);
+    setRecetaId("");
     setVueltaExtras((v) => v + 1);
   }
 
@@ -248,6 +282,7 @@ export function FormularioLabor({
     setErrores(faltan);
     if (faltan.length) {
       setAviso("");
+      setGuardadaId(null);
       return;
     }
 
@@ -269,6 +304,7 @@ export function FormularioLabor({
           notas: notas || null,
           aplicacion: datosAplicacion,
           zonas: enManchones && completas(zonas).length ? completas(zonas) : null,
+          recetaId: recetaId ? Number(recetaId) : null,
           extras: formulario.current ? leerExtras(new FormData(formulario.current)) : {},
           descontarStock,
           insumos: lineas.map((l) => ({
@@ -285,6 +321,7 @@ export function FormularioLabor({
         return;
       }
       if (resultado.ok) {
+        setGuardadaId(resultado.id ?? null);
         setAviso(`Se guardó: ${descripcion}${resultado.demo ? " (modo demo: no se guardó en la base)" : ""}.`);
         if (!editando) limpiar(cargarOtra);
       } else {
@@ -321,7 +358,20 @@ export function FormularioLabor({
                 ))}
               </ul>
             ) : (
-              aviso
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>{aviso}</span>
+                {guardadaId && (
+                  <a
+                    href={`/historial/${guardadaId}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-primary text-primary-foreground flex h-9 items-center gap-1.5 rounded-lg px-3 font-bold"
+                  >
+                    <FileDown className="size-4" aria-hidden />
+                    PDF para el cliente
+                  </a>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -346,6 +396,22 @@ export function FormularioLabor({
             </select>
             {lote && <span className="text-muted-foreground text-xs font-normal">Cultivo: {lote.cultivo}</span>}
           </label>
+
+          {recetasDelLote.length > 0 && (
+            <label className={etiqueta}>
+              Receta
+              <select className={entrada} value={recetaId} onChange={(e) => elegirReceta(e.target.value)}>
+                <option value="">Sin receta</option>
+                {recetasDelLote.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    N° {r.numero} · {fechaCorta(r.fecha)}
+                    {r.objetivo ? ` · ${r.objetivo}` : ""}
+                  </option>
+                ))}
+              </select>
+              <span className="text-muted-foreground text-xs font-normal">Va en el PDF de la labor.</span>
+            </label>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <label className={etiqueta}>

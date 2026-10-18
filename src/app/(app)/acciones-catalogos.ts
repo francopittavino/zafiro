@@ -17,7 +17,9 @@ import {
   productos,
   proveedores,
   tiposLabor,
+  type Dibujo,
 } from "@/db/schema";
+import { dibujoValido } from "@/lib/dibujo";
 import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual } from "@/lib/datos";
 import { limpiarExtras } from "@/lib/extras";
@@ -162,6 +164,8 @@ export type DatosLote = {
   longitud?: number | null;
   notas?: string;
   extras?: Record<string, string>;
+  /** Contorno sobre la foto del campo: undefined no lo toca, null lo borra. */
+  dibujo?: Dibujo | null;
 };
 
 function validarLote(datos: DatosLote) {
@@ -172,6 +176,7 @@ function validarLote(datos: DatosLote) {
     return "La tenencia no es válida.";
   if (datos.fechaSiembra && !fechaValida(datos.fechaSiembra)) return "La fecha de siembra no es válida.";
   if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud)) return "Revisá las coordenadas.";
+  if (datos.dibujo != null && !dibujoValido(datos.dibujo)) return "Marcá al menos 3 puntos del lote en el mapa.";
   return null;
 }
 
@@ -211,6 +216,7 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
           longitud: numeroOpcional(datos.longitud),
           notas: opcional(datos.notas),
           extras,
+          ...(datos.dibujo !== undefined && { dibujo: datos.dibujo }),
         };
         let id = loteId;
         if (id === undefined) {

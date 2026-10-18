@@ -3,6 +3,7 @@ import { Encabezado } from "@/components/app/encabezado";
 import { laborDescontoStock, obtenerDatos } from "@/lib/datos";
 import { tarifaUsdHa } from "@/lib/calculos";
 import { mapasDeCampos } from "@/lib/fotos";
+import { listarRecetas } from "@/lib/recetas";
 import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 
 /**
@@ -13,7 +14,7 @@ import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 export default async function Registrar({ searchParams }: PageProps<"/registrar">) {
   const { lote, labor: editar, duplicar } = await searchParams;
   const datos = await obtenerDatos();
-  const mapas = await mapasDeCampos(datos.campos);
+  const [mapas, recetas] = await Promise.all([mapasDeCampos(datos.campos), listarRecetas()]);
 
   const idOrigen = Number(typeof editar === "string" ? editar : typeof duplicar === "string" ? duplicar : NaN);
   const modo = typeof editar === "string" ? "editar" : typeof duplicar === "string" ? "duplicar" : "nueva";
@@ -39,6 +40,7 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
       // Al duplicar se copia la mezcla y la forma de trabajo, no el clima ni los manchones.
       aplicacion: modo === "editar" ? origen.aplicacion : undefined,
       zonas: modo === "editar" ? origen.zonas : null,
+      recetaId: modo === "editar" ? origen.recetaId : null,
       extras: modo === "editar" ? origen.extras : null,
       descontoStock: modo === "editar" ? await laborDescontoStock(origen.id) : true,
     };
@@ -71,6 +73,9 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
         personalizados={datos.camposPersonalizados ?? []}
         stock={datos.stock ?? []}
         mapas={Object.fromEntries(mapas)}
+        recetas={recetas
+          .filter((r) => r.estado !== "anulada")
+          .map((r) => ({ id: r.id, numero: r.numero, loteId: r.loteId, fecha: r.fecha, objetivo: r.plagaObjetivo, items: r.items }))}
         tiposLabor={datos.tiposLabor.map((t) => ({
           id: t.id,
           nombre: t.nombre,

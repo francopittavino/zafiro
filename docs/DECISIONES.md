@@ -138,6 +138,9 @@ Principios ya acordados como recomendación:
 | 2026-10-17 | Cosecha (rinde kg/ha, precio, arrendamiento %, comercialización %, flete) se carga desde la ficha del lote | Respuesta 7.3; antes el formulario no guardaba |
 | 2026-10-17 | Historial de precios: **se deja de mostrar** (el cliente no lo quiere); se sigue guardando (el vigente es el último) porque no molesta y las labores guardan su snapshot | Respuesta 6.4 |
 | 2026-10-17 | Mezclas de tanque: se mantiene "labor con N productos" (sirve igual con uno solo) | Respuesta 4.3 |
+| 2026-10-18 | **PDF de la labor** para el cliente (`/historial/[id]/pdf`): campo y lote, mapa con el lote resaltado y los manchones, datos de la labor, productos, detalle del costo (insumos + labor por ha u hora, total y USD/ha), receta vinculada, labores del lote en la campaña y la última foto del lote. Botón en el historial, en la ficha del lote y al guardar la labor | Pedido del dev |
+| 2026-10-18 | **La labor puede vincular una receta** del mismo lote (`labores.receta_id`, ya existía en la base: sin migración). Al elegirla, si no hay productos cargados, se copian los de la receta. Reemplaza "las recetas no se vinculan a labores" del 2026-10-17 | Que la receta salga en el PDF de la labor |
+| 2026-10-18 | **Mapa en todos lados**: al dar de alta o editar un lote aparece el mapa del campo para marcarlo; en la ficha del campo el mapa va primero en el celular y cada lote muestra su cultivo; los PDF de receta, informe y labor muestran el mapa del campo con el lote correspondiente resaltado (`src/pdf/mapa.tsx`) | Pedido del dev |
 
 ## 5. Preguntas abiertas
 
@@ -159,8 +162,7 @@ Principios ya acordados como recomendación:
 - **Clave de Storage**: falta `SUPABASE_SECRET_KEY` en `.env.local` y en Vercel (y `SUPABASE_URL` en Vercel). Sin eso no se pueden subir fotos. Una vez cargada, probar subir/ver/borrar.
 - La base es **una sola para local y producción**: lo que se cargue en local queda en serio. Evaluar un proyecto/branch de Supabase aparte para desarrollo antes de entregar.
 - Vercel: poner las funciones en la región **São Paulo (gru1)**, cerca de la base, para bajar la latencia de cada consulta.
-- **Aplicar la migración 0006** (`npm run db:migrate`) apenas se reactive Supabase, y **recién después hacer push** (el deploy de `main` espera las tablas nuevas).
-- Probar contra la base todo lo nuevo (ver bitácora 2026-10-17). Los PDF se probaron solo con datos de prueba.
+- Probar contra la base todo lo nuevo (ver bitácora 2026-10-17). La migración 0006 ya está aplicada (verificado el 2026-10-18). Ningún campo tiene todavía foto de mapa: el mapa en los PDF se probó solo con una imagen de prueba.
 - La columna `lotes.contorno` (PostGIS) queda sin uso: el mapa usa `lotes.dibujo`.
 - Al borrar una labor/lote con fotos, el archivo queda en Storage (la fila se borra en cascada). Limpiar cuando se implemente el borrado de lotes o las fotos de labores.
 

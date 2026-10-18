@@ -48,7 +48,17 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
         }
       />
       <div className="grid gap-4 p-4 md:grid-cols-2 md:items-start md:p-0">
-        <div className="flex flex-col gap-4">
+        {/* En el celular el mapa va primero: es lo que se mira al entrar al campo. */}
+        <div className="flex flex-col gap-4 md:order-2">
+          <MapaCampo
+            campoId={campo.id}
+            foto={mapas.get(campo.id) ?? null}
+            fotos={galeria.fotos}
+            lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo }))}
+            disponible={galeria.disponible}
+          />
+        </div>
+        <div className="flex flex-col gap-4 md:order-1">
           {(ficha.length > 0 || mapa || campo.notas) && (
             <section className="bg-card rounded-xl border p-4 text-sm">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -136,15 +146,6 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
               </ul>
             )}
           </section>
-        </div>
-        <div className="flex flex-col gap-4">
-          <MapaCampo
-            campoId={campo.id}
-            foto={mapas.get(campo.id) ?? null}
-            fotos={galeria.fotos}
-            lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo }))}
-            disponible={galeria.disponible}
-          />
           <GaleriaFotos destino={{ tipo: "campo", id: campo.id }} {...galeria} />
         </div>
       </div>

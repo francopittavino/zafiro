@@ -1,14 +1,27 @@
 import "server-only";
 import { Text, View } from "@react-pdf/renderer";
 import type { recetaDetallada, DatosIngeniero } from "@/lib/recetas";
+import type { MapaConLotes } from "@/lib/fotos";
 import { valoresExtra } from "@/components/app/campos-extra";
 import { fechaCorta, num } from "@/lib/formato";
 import { COLOR, Datos, Documento, Hoja, Seccion, Tabla, estilos, type Logo } from "./comun";
+import { MapaCampoPdf } from "./mapa";
 
 type Detalle = NonNullable<Awaited<ReturnType<typeof recetaDetallada>>>;
 
 /** Resumen de la receta fitosanitaria (no reemplaza a la oficial de Entre Ríos). */
-export function RecetaPdf({ detalle, logo, ingeniero }: { detalle: Detalle; logo: Logo; ingeniero: DatosIngeniero }) {
+export function RecetaPdf({
+  detalle,
+  mapa,
+  logo,
+  ingeniero,
+}: {
+  detalle: Detalle;
+  /** Mapa del campo, con el lote de la receta resaltado. */
+  mapa: MapaConLotes | null;
+  logo: Logo;
+  ingeniero: DatosIngeniero;
+}) {
   const { receta: r, lote, campo, productor, ha, productos, personalizados } = detalle;
   const titulo = `Receta agronómica N° ${r.numero}`;
   return (
@@ -30,6 +43,11 @@ export function RecetaPdf({ detalle, logo, ingeniero }: { detalle: Detalle; logo
               { nombre: "Superficie", valor: `${num(ha)} ha` },
             ]}
           />
+          {mapa && lote && (
+            <View style={{ marginTop: 8 }}>
+              <MapaCampoPdf mapa={mapa} resaltado={lote.id} alto={260} />
+            </View>
+          )}
         </Seccion>
 
         <Seccion titulo="Aplicación">

@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import type { Dibujo } from "@/db/schema";
+import type { FotoMapa } from "@/lib/fotos";
 import { Dialogo } from "./dialogo";
+import { EditorDibujo, completas, type LoteMapa } from "./mapa";
+import { mapaParaMarcar } from "@/app/(app)/acciones-mapa";
 import { CamposExtra, leerExtras } from "./campos-extra";
 import type { Campo, Catalogo, CampoPersonalizado, Lote, Producto, Productor } from "@/lib/datos";
 import { CATEGORIAS_LABOR, CATEGORIAS_PRODUCTO, CULTIVOS_SUGERIDOS, UNIDADES } from "@/lib/catalogos";
@@ -306,6 +310,32 @@ export function FormLote({
   const [campoId, setCampoId] = useState(inicial?.campoId ? String(inicial.campoId) : "");
   const nuevoCampo = campoId === "__nuevo__";
   const extras = personalizados.filter((c) => c.entidad === "lote");
+  // Mapa del campo elegido (se pide al cambiar de campo; `campoId` dice de cuál es).
+  const [mapa, setMapa] = useState<{ campoId: string; datos: { foto: FotoMapa; lotes: LoteMapa[] } | null } | null>(null);
+  const [dibujo, setDibujo] = useState<Dibujo[]>(inicial?.dibujo ? [inicial.dibujo] : []);
+  const [dibujoTocado, setDibujoTocado] = useState(false);
+  const mapaDelCampo = mapa?.campoId === campoId ? mapa.datos : null;
+
+  useEffect(() => {
+    const id = Number(campoId);
+    if (!campoId || !Number.isInteger(id)) return;
+    let vigente = true;
+    mapaParaMarcar(id).then(
+      (datos) => vigente && setMapa({ campoId, datos }),
+      () => vigente && setMapa({ campoId, datos: null }),
+    );
+    return () => {
+      vigente = false;
+    };
+  }, [campoId]);
+
+  /** Contorno a guardar: undefined deja el que estaba; null lo borra. */
+  function contornoAGuardar(): Dibujo | null | undefined {
+    if (dibujoTocado) return completas(dibujo)[0] ?? null;
+    // Si se pasó el lote a otro campo, el contorno era sobre la foto del campo anterior.
+    if (inicial?.campoId && String(inicial.campoId) !== campoId) return null;
+    return undefined;
+  }
 
   return (
     <form
@@ -318,6 +348,8 @@ export function FormLote({
         const longitud = numeroOpcional(f, "longitud");
         if (invalido(latitud, longitud)) return setError("Las coordenadas tienen que ser números (ej. -32,4825).");
         const tenencia = String(f.get("tenencia") ?? "");
+        if (dibujoTocado && dibujo.length && !completas(dibujo).length)
+          return setError("Marcá al menos 3 puntos del lote en el mapa (o borrá el contorno).");
         enviar(() =>
           guardarLote(
             {
@@ -335,6 +367,7 @@ export function FormLote({
               longitud,
               notas: String(f.get("notas") ?? ""),
               extras: leerExtras(f),
+              dibujo: contornoAGuardar(),
             },
             loteId,
           ),
@@ -391,6 +424,26 @@ export function FormLote({
           </datalist>
         </label>
       </div>
+      {mapaDelCampo ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-bold">Ubicación en el mapa del campo</p>
+          <EditorDibujo
+            foto={mapaDelCampo.foto}
+            fondo={mapaDelCampo.lotes.filter((l) => l.id !== loteId)}
+            figuras={dibujo}
+            alCambiar={(f) => {
+              setDibujo(f.slice(-1));
+              setDibujoTocado(true);
+            }}
+          />
+        </div>
+      ) : (
+        mapa?.campoId === campoId && (
+          <p className="text-muted-foreground text-xs">
+            Este campo todavía no tiene foto del mapa: subila desde la ficha del campo para marcar el lote.
+          </p>
+        )
+      )}
       <MasDatos>
         <div className="grid grid-cols-2 gap-3">
           <label className={etiqueta}>

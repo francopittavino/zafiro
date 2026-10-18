@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { FileDown, FileText, Plus } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { ChipCultivo } from "@/components/app/chip-cultivo";
 import { BotonEditarLote } from "@/components/app/altas";
@@ -177,10 +177,10 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
             ) : (
               <ol className="bg-card divide-y rounded-xl border">
                 {labores.map((l) => (
-                  <li key={l.id}>
+                  <li key={l.id} className="flex items-stretch">
                     <Link
                       href={`/registrar?labor=${l.id}`}
-                      className="hover:bg-muted/60 grid grid-cols-[52px_1fr_auto] gap-2 px-4 py-3"
+                      className="hover:bg-muted/60 grid flex-1 grid-cols-[52px_1fr_auto] gap-2 py-3 pl-4 pr-2"
                     >
                       <span className="text-muted-foreground pt-0.5 text-xs">{fechaCorta(l.fecha)}</span>
                       <span className="min-w-0">
@@ -197,6 +197,16 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
                       </span>
                       <span className="font-bold tabular-nums">{usd(l.costo.total)}</span>
                     </Link>
+                    <a
+                      href={`/historial/${l.id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`PDF de ${l.tipo} del ${fechaCorta(l.fecha)}`}
+                      title="PDF para el cliente"
+                      className="text-zafiro hover:bg-muted/60 flex w-12 items-center justify-center border-l"
+                    >
+                      <FileDown className="size-5" aria-hidden />
+                    </a>
                   </li>
                 ))}
               </ol>

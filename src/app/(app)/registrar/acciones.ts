@@ -35,13 +35,15 @@ export type DatosLabor = {
   aplicacion: DatosAplicacion;
   /** Manchones marcados sobre la foto del campo (si no se aplicó en todo el lote). */
   zonas: Dibujo[] | null;
+  /** Receta con la que se hizo la aplicación (opcional). */
+  recetaId: number | null;
   extras: Record<string, string>;
   insumos: { productoId: number; dosis: number; precio: number }[];
   /** Descontar los productos del stock del campo. */
   descontarStock: boolean;
 };
 
-export type Resultado = { ok: true; demo?: boolean } | { ok: false; error: string };
+export type Resultado = { ok: true; id?: number; demo?: boolean } | { ok: false; error: string };
 
 const positivo = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n > 0;
 const noNegativo = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
@@ -65,6 +67,7 @@ function validar(labor: DatosLabor): string | null {
     return "Revisá los datos de la aplicación.";
   if (labor.zonas !== null && !(Array.isArray(labor.zonas) && labor.zonas.length <= 50 && labor.zonas.every(dibujoValido)))
     return "Las zonas marcadas no son válidas.";
+  if (labor.recetaId !== null && !Number.isInteger(labor.recetaId)) return "La receta no es válida.";
   if (!labor.insumos.every((i) => Number.isInteger(i.productoId) && positivo(i.dosis) && noNegativo(i.precio)))
     return "Revisá la dosis y el precio de los productos.";
   return null;
@@ -111,7 +114,7 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
   if (!campania) return { ok: false, error: "No hay una campaña creada." };
   const extras = await limpiarExtras("labor", labor.extras);
 
-  const existe = await dbTx.transaction(async (tx) => {
+  const guardada = await dbTx.transaction(async (tx) => {
     const cicloId = await cicloDelLote(tx, labor.loteId, campania.id);
     const [{ campoId }] = await tx.select({ campoId: lotes.campoId }).from(lotes).where(eq(lotes.id, labor.loteId));
     const aporteId = await aporteDeNombre(tx, labor.aporte);
@@ -138,6 +141,7 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
       vientoDireccion: texto(a.vientoDireccion),
       aplicador: texto(a.aplicador),
       zonas: labor.zonas?.length ? labor.zonas : null,
+      recetaId: labor.recetaId,
       extras,
       notas: texto(labor.notas),
     };
@@ -147,7 +151,7 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
       [{ id }] = await tx.insert(labores).values(valores).returning({ id: labores.id });
     } else {
       const actualizadas = await tx.update(labores).set(valores).where(eq(labores.id, id)).returning({ id: labores.id });
-      if (!actualizadas.length) return false;
+      if (!actualizadas.length) return null;
       // Los productos y su stock se reemplazan completos: es más simple que comparar línea por línea.
       await tx.delete(laborInsumos).where(eq(laborInsumos.laborId, id));
       await tx.delete(movimientosStock).where(eq(movimientosStock.laborId, id));
@@ -177,12 +181,12 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
         );
       }
     }
-    return true;
+    return id;
   });
 
-  if (!existe) return { ok: false, error: "La labor ya no existe (¿se eliminó?)." };
+  if (guardada === null) return { ok: false, error: "La labor ya no existe (¿se eliminó?)." };
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, id: guardada };
 }
 
 /** Borra una labor con sus productos y sus movimientos de stock (en cascada): el stock vuelve. */

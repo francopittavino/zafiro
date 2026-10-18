@@ -1,7 +1,8 @@
 import "server-only";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { fotos } from "@/db/schema";
+import { fotos, type Dibujo } from "@/db/schema";
+import type { Campo, Lote } from "./datos";
 import { modoDemo } from "./modo-demo";
 import { fotosConfiguradas, urlsFirmadas } from "./almacenamiento";
 
@@ -37,6 +38,22 @@ export async function mapasDeCampos(campos: { id: number; fotoMapaId?: number | 
     if (f && url) mapas.set(c.id, { id: f.id, url, ancho: f.ancho ?? 1600, alto: f.alto ?? 1200 });
   }
   return mapas;
+}
+
+/** Mapa de un campo listo para dibujar (PDF): la foto y los lotes marcados sobre ella. */
+export type MapaConLotes = {
+  campo: string;
+  foto: FotoMapa;
+  lotes: { id: number; codigo: string; nombre: string; cultivo: string; dibujo: Dibujo }[];
+};
+
+/** Mapa del campo con sus lotes marcados, o null si no tiene foto o ningún lote marcado. */
+export async function mapaConLotes(campo: Campo, lotes: Lote[]): Promise<MapaConLotes | null> {
+  const foto = (await mapasDeCampos([campo])).get(campo.id);
+  const marcados = lotes
+    .filter((l) => l.campoId === campo.id && l.dibujo)
+    .map((l) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo! }));
+  return foto && marcados.length ? { campo: campo.nombre, foto, lotes: marcados } : null;
 }
 
 /** Estado de la galería: si se pueden usar las fotos y las que hay, de la más nueva a la más vieja. */
