@@ -6,7 +6,7 @@
 ## 1. Contexto del proyecto
 
 - **Qué es:** sistema de gestión agronómica a medida para un cliente (ingeniero agrónomo / productor, Argentina).
-- **Estado:** implementado lo que pidió el cliente (2026-10-17) y los pedidos del dev del 2026-10-18 (campañas por cultivo con cierre, receta oficial en PDF, mapa en las altas, PDF de labor, inicio simple). Migraciones hasta la **0007 aplicadas**; producción andando. **Falta borrar los trabajos de prueba** (`npm run db:borrar-trabajos -- --confirmar`) para que el ingeniero cargue todo de cero.
+- **Estado:** implementado lo que pidió el cliente (2026-10-17) y los pedidos del dev del 2026-10-18 (campañas por cultivo con cierre, receta oficial en PDF, mapa en las altas, PDF de labor, inicio simple). Migraciones hasta la **0007 aplicadas**; producción andando. **Trabajos de prueba borrados** (2026-10-18): la base tiene campos, lotes, insumos y catálogos, sin cultivos ni campañas; el ingeniero carga todo de cero.
 - **Lo que dijo el cliente en el audio:**
   - Ya tiene una "base de datos" (formato desconocido).
   - Trabaja varios campos en distintas localidades; los lotes los dibuja/descarga desde Google Earth (ubicación, lotes).
@@ -152,7 +152,9 @@ Principios ya acordados como recomendación:
 | 2026-10-18 | **Inicio simple**: botones Registrar labor / Nueva receta, "Para hacer" (lotes cosechados sin cerrar, lotes sin cultivo), campos con el cultivo de cada lote y últimas labores, **sin montos** (quedan en Informes y en cada lote) | "Que no se pierda en tantos números" |
 | 2026-10-18 | Informes: el filtro de **productor** se ve siempre; con varios campos el PDF agrega "Resumen por cultivo y por campo" (el mismo cultivo repartido en varios campos de un productor) | Pedido del dev |
 | 2026-10-18 | Si el almacenamiento falla (variables mal cargadas), las pantallas **no se rompen**: muestran el motivo (ej. "SUPABASE_URL no es una dirección válida") | En producción las páginas con fotos daban error 500 |
-| 2026-10-18 | Borrar los trabajos de prueba con `npm run db:borrar-trabajos` (sin `--confirmar` solo muestra qué borraría): labores, recetas, gastos, stock, cultivos y campañas vacías. **Quedan** campos, lotes, insumos, tipos de labor y catálogos | Pedido del dev: el ingeniero carga todo de cero. **Todavía no se corrió** |
+| 2026-10-18 | Borrar los trabajos de prueba con `npm run db:borrar-trabajos` (sin `--confirmar` solo muestra qué borraría): labores, recetas, gastos, stock, cultivos y campañas vacías. **Quedan** campos, lotes, insumos, tipos de labor y catálogos. **Se corrió el 2026-10-18** (31 labores, 83 productos aplicados, 31 cultivos y la campaña 2024/25); copia en JSON fuera del repo | Pedido del dev: el ingeniero carga todo de cero |
+| 2026-10-18 | La app funciona **sin campañas**: si no hay ninguna, se usa la de la fecha (`campaniaSugerida`, junio a mayo) y se crea al iniciar el primer cultivo o cargar un gasto | Después del borrado no quedó ninguna campaña |
+| 2026-10-18 | `SUPABASE_URL` corregida en Vercel (Production) + redeploy. Las variables de Supabase están solo en Production | Subir la foto del campo daba "SUPABASE_URL no es una dirección válida" |
 
 ## 5. Preguntas abiertas
 
@@ -267,7 +269,7 @@ Principios ya acordados como recomendación:
 **Estado al cierre:** todo desplegado y andando en producción; los datos siguen siendo los de prueba.
 
 **Próximos pasos:**
-1. Cuando el dev lo confirme: `npm run db:borrar-trabajos -- --confirmar` (quedan campos, lotes, insumos y catálogos; los lotes arrancan sin cultivo).
+1. ~~Borrar los trabajos de prueba~~ ✔ (hecho). Probar subir la foto del campo en producción: si dice que la clave no es válida, el dev pega `SUPABASE_SECRET_KEY` en Vercel y redespliega.
 2. Recorrer en el celular lo nuevo (ver Preguntas abiertas → Técnicas) y cargar las coordenadas y la foto del mapa de cada campo.
 3. Cargar en Ajustes los datos del ingeniero y crear los productores con sus campos.
 4. Mostrarle al cliente los PDF de muestra y preguntarle lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).

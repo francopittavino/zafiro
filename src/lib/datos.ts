@@ -27,6 +27,7 @@ import {
   type Extras,
 } from "@/db/schema";
 import { modoDemo } from "./modo-demo";
+import { campaniaSugerida } from "./formato";
 
 /**
  * Datos de los cultivos en curso (o de una campaña o un ciclo ya cerrado, para su informe),
@@ -281,8 +282,8 @@ function aCiclo({ ciclo: c, campania }: { ciclo: typeof ciclos.$inferSelect; cam
 }
 
 async function datosDeLaBase(alcance: Alcance): Promise<Datos> {
+  // Sin campañas (base recién limpia) igual se muestran campos, lotes e insumos.
   const actual = await campaniaActual();
-  if (!actual) return VACIO;
   const cond = condicionCiclos(alcance);
   const idsCiclos = db.select({ id: ciclos.id }).from(ciclos).where(cond);
   const campaniasDeLosCiclos = db.select({ id: ciclos.campaniaId }).from(ciclos).where(cond);
@@ -389,7 +390,7 @@ async function datosDeLaBase(alcance: Alcance): Promise<Datos> {
 
   return {
     // En curso puede haber cultivos de dos campañas (ej. 2025/26 y 2026/27): se muestran juntas.
-    campania: nombresCampanias.length ? nombresCampanias.join(" · ") : actual.nombre,
+    campania: nombresCampanias.length ? nombresCampanias.join(" · ") : (actual?.nombre ?? campaniaSugerida()),
     alcance,
     ciclos: filasCiclos.map(aCiclo),
     cotizacion: {

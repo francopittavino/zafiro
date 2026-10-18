@@ -10,7 +10,7 @@ import { fotosDe, mapasDeCampos } from "@/lib/fotos";
 import { Leyenda, VistaMapa } from "@/components/app/mapa";
 import { ciclosDelLote, listarCampanias, obtenerDatos } from "@/lib/datos";
 import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
-import { fechaCorta, num, usd } from "@/lib/formato";
+import { campaniaSugerida, fechaCorta, num, usd } from "@/lib/formato";
 import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
 import { BotonCosecha } from "./cosecha";
 import { BotonCerrarCultivo, BotonIniciarCultivo, HistorialCultivos } from "./cultivo";
@@ -93,7 +93,7 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
               <BotonIniciarCultivo
                 loteId={lote.id}
                 campanias={campanias.map((c) => c.nombre)}
-                sugerida={anteriores[0]?.campania ?? campanias[0]?.nombre ?? ""}
+                sugerida={anteriores[0]?.campania ?? campanias[0]?.nombre ?? campaniaSugerida()}
               />
             </section>
           )}

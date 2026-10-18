@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import { dibujoValido } from "@/lib/dibujo";
 import { campaniaDeNombre, campaniaValida, cicloEnCurso } from "@/lib/ciclos";
+import { campaniaSugerida } from "@/lib/formato";
 import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual } from "@/lib/datos";
 import { limpiarExtras } from "@/lib/extras";
@@ -241,7 +242,7 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
           else {
             const campaniaId = datos.campania
               ? await campaniaDeNombre(tx, datos.campania)
-              : (await campaniaActual())?.id;
+              : ((await campaniaActual())?.id ?? (await campaniaDeNombre(tx, campaniaSugerida())));
             if (campaniaId)
               await tx.insert(ciclos).values({ loteId: id, campaniaId, superficieHa: String(datos.ha), ...ciclo });
           }

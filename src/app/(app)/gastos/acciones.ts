@@ -6,7 +6,8 @@ import { db, dbTx } from "@/db";
 import { gastos } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
 import { campaniaActual } from "@/lib/datos";
-import { SIN_CULTIVO, cicloParaRegistro } from "@/lib/ciclos";
+import { SIN_CULTIVO, campaniaDeNombre, cicloParaRegistro } from "@/lib/ciclos";
+import { campaniaSugerida } from "@/lib/formato";
 import { modoDemo } from "@/lib/modo-demo";
 import type { ResultadoAlta } from "../acciones-catalogos";
 
@@ -47,8 +48,8 @@ export async function guardarGasto(datos: DatosGasto, gastoId?: number): Promise
     ciclo = await cicloParaRegistro(db, datos.destino.id!, anterior);
     if (!ciclo) return { ok: false, error: SIN_CULTIVO };
   }
-  const campania = await campaniaActual();
-  if (!campania) return { ok: false, error: "No hay una campaña creada." };
+  // Sin campañas todavía, el gasto de un campo o general va a la campaña de la fecha de hoy.
+  const campania = (await campaniaActual()) ?? { id: await campaniaDeNombre(db, campaniaSugerida()) };
 
   const id = await dbTx.transaction(async (tx) => {
     const valores = {
