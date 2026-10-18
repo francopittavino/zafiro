@@ -45,7 +45,7 @@ export function RecetaPdf({
           />
           {mapa && lote && (
             <View style={{ marginTop: 8 }}>
-              <MapaCampoPdf mapa={mapa} resaltado={lote.id} alto={260} />
+              <MapaCampoPdf mapa={mapa} resaltado={lote.id} alto={200} />
             </View>
           )}
         </Seccion>
@@ -100,7 +100,13 @@ export function RecetaPdf({
             ),
         )}
 
-        <View style={{ marginTop: 40, flexDirection: "row", justifyContent: "flex-end" }} wrap={false}>
+        <View
+          style={{ marginTop: 28, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}
+          wrap={false}
+        >
+          <Text style={[estilos.subtitulo, { flex: 1 }]}>
+            Resumen de la receta agronómica. No reemplaza a la receta fitosanitaria oficial.
+          </Text>
           <View style={{ width: 200, borderTopWidth: 0.8, borderTopColor: COLOR.texto, paddingTop: 4, alignItems: "center" }}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{ingeniero.ingeniero_nombre || "Ingeniero agrónomo"}</Text>
             {ingeniero.ingeniero_matricula && (
@@ -108,9 +114,6 @@ export function RecetaPdf({
             )}
           </View>
         </View>
-        <Text style={[estilos.subtitulo, { marginTop: 16 }]}>
-          Resumen de la receta agronómica. No reemplaza a la receta fitosanitaria oficial.
-        </Text>
       </Hoja>
     </Documento>
   );

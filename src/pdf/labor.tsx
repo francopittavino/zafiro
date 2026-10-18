@@ -133,31 +133,34 @@ export function LaborPdf({
           )}
         </Seccion>
 
-        <Seccion titulo="Detalle del costo">
-          <Tabla
-            columnas={[
-              { titulo: "Concepto", ancho: 2.5 },
-              { titulo: "Cálculo", ancho: 3.5 },
-              { titulo: "USD/ha", ancho: 1.4, derecha: true },
-              { titulo: "USD", ancho: 1.6, derecha: true },
-            ]}
-            filas={[
-              ["Insumos", `${labor.productos.length} productos`, porHa(labor.costo.insumos), usd2(labor.costo.insumos)],
-              [`Labor (${labor.tipo})`, trabajo, porHa(labor.costo.trabajo), usd2(labor.costo.trabajo)],
-            ]}
-            total={["Total de la labor", "", porHa(labor.costo.total), usd2(labor.costo.total)]}
-          />
-          <View style={[estilos.tarjetas, { marginTop: 8 }]} wrap={false}>
-            <View style={estilos.tarjetaFuerte}>
-              <Text style={[estilos.etiqueta, { color: "white" }]}>Total de la labor</Text>
-              <Text style={estilos.numeroGrande}>USD {usd2(labor.costo.total)}</Text>
+        {/* Título, tabla y totales juntos: si no entran, pasan enteros a la hoja siguiente. */}
+        <View wrap={false}>
+          <Seccion titulo="Detalle del costo">
+            <Tabla
+              columnas={[
+                { titulo: "Concepto", ancho: 2.5 },
+                { titulo: "Cálculo", ancho: 3.5 },
+                { titulo: "USD/ha", ancho: 1.4, derecha: true },
+                { titulo: "USD", ancho: 1.6, derecha: true },
+              ]}
+              filas={[
+                ["Insumos", `${labor.productos.length} productos`, porHa(labor.costo.insumos), usd2(labor.costo.insumos)],
+                [`Labor (${labor.tipo})`, trabajo, porHa(labor.costo.trabajo), usd2(labor.costo.trabajo)],
+              ]}
+              total={["Total de la labor", "", porHa(labor.costo.total), usd2(labor.costo.total)]}
+            />
+            <View style={[estilos.tarjetas, { marginTop: 8 }]} wrap={false}>
+              <View style={estilos.tarjetaFuerte}>
+                <Text style={[estilos.etiqueta, { color: "white" }]}>Total de la labor</Text>
+                <Text style={estilos.numeroGrande}>USD {usd2(labor.costo.total)}</Text>
+              </View>
+              <View style={estilos.tarjeta}>
+                <Text style={estilos.etiqueta}>Por hectárea</Text>
+                <Text style={estilos.numeroGrande}>{porHa(labor.costo.total)} USD/ha</Text>
+              </View>
             </View>
-            <View style={estilos.tarjeta}>
-              <Text style={estilos.etiqueta}>Por hectárea</Text>
-              <Text style={estilos.numeroGrande}>{porHa(labor.costo.total)} USD/ha</Text>
-            </View>
-          </View>
-        </Seccion>
+          </Seccion>
+        </View>
 
         {receta && (
           <Seccion titulo={`Receta N° ${receta.receta.numero}`}>

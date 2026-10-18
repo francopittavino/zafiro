@@ -30,7 +30,9 @@ export async function GET(request: Request) {
     })),
   ].slice(0, MAXIMO_FOTOS);
   for (const d of destinos) {
-    const { fotos: lista } = await fotosDe({ tipo: d.tipo, id: d.id });
+    // La foto que se usa de mapa ya sale en la sección Mapa: no se repite.
+    const mapaId = d.tipo === "campo" ? informe.datos.campos.find((c) => c.id === d.id)?.fotoMapaId : null;
+    const lista = (await fotosDe({ tipo: d.tipo, id: d.id })).fotos.filter((f) => f.id !== mapaId);
     if (lista[0]) fotos.push({ titulo: d.titulo, url: lista[0].url, ancho: lista[0].ancho, alto: lista[0].alto });
   }
 
