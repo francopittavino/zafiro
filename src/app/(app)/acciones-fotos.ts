@@ -20,7 +20,7 @@ const entero = (v: FormDataEntryValue | null) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
-/** Sube una foto (ya achicada en el navegador) a un campo o lote. */
+/** Sube una foto (ya achicada en el navegador) a un campo o lote; con `mapa=1` queda como mapa del campo. */
 export async function subirFoto(formulario: FormData): Promise<Resultado> {
   await verificarSesion();
   if (modoDemo()) return { ok: false, error: "En el modo demo no se pueden cargar fotos." };
@@ -48,15 +48,21 @@ export async function subirFoto(formulario: FormData): Promise<Resultado> {
 
   await subirArchivo(ruta, archivo);
   try {
-    await db.insert(fotos).values({
-      ruta,
-      fecha,
-      nota,
-      ancho: entero(formulario.get("ancho")),
-      alto: entero(formulario.get("alto")),
-      campoId: tipo === "campo" ? destinoId : null,
-      loteId: tipo === "lote" ? destinoId : null,
-    });
+    const [nueva] = await db
+      .insert(fotos)
+      .values({
+        ruta,
+        fecha,
+        nota,
+        ancho: entero(formulario.get("ancho")),
+        alto: entero(formulario.get("alto")),
+        campoId: tipo === "campo" ? destinoId : null,
+        loteId: tipo === "lote" ? destinoId : null,
+      })
+      .returning({ id: fotos.id });
+    // "Subir foto del mapa": la foto nueva pasa a ser la del mapa del campo.
+    if (tipo === "campo" && formulario.get("mapa") === "1")
+      await db.update(campos).set({ fotoMapaId: nueva.id }).where(eq(campos.id, destinoId));
   } catch (error) {
     // Si no se pudo registrar, no dejar el archivo huérfano en el bucket.
     await borrarArchivo(ruta).catch(() => {});

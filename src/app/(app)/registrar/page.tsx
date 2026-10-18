@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Encabezado } from "@/components/app/encabezado";
 import { laborDescontoStock, obtenerDatos } from "@/lib/datos";
 import { tarifaUsdHa } from "@/lib/calculos";
+import { mapasDeCampos } from "@/lib/fotos";
 import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 
 /**
@@ -12,6 +13,7 @@ import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 export default async function Registrar({ searchParams }: PageProps<"/registrar">) {
   const { lote, labor: editar, duplicar } = await searchParams;
   const datos = await obtenerDatos();
+  const mapas = await mapasDeCampos(datos.campos);
 
   const idOrigen = Number(typeof editar === "string" ? editar : typeof duplicar === "string" ? duplicar : NaN);
   const modo = typeof editar === "string" ? "editar" : typeof duplicar === "string" ? "duplicar" : "nueva";
@@ -68,6 +70,7 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
         contratistas={(datos.contratistas ?? []).map((c) => c.nombre)}
         personalizados={datos.camposPersonalizados ?? []}
         stock={datos.stock ?? []}
+        mapas={Object.fromEntries(mapas)}
         tiposLabor={datos.tiposLabor.map((t) => ({
           id: t.id,
           nombre: t.nombre,

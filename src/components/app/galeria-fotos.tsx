@@ -12,10 +12,10 @@ import type { Foto } from "@/lib/fotos";
 /** Lado mayor de la foto que se sube: alcanza para verla bien y pesa ~0,3–0,5 MB. */
 const LADO_MAXIMO = 1600;
 
-type Preparada = { archivo: Blob; vista: string; ancho: number; alto: number; fecha: string };
+export type Preparada = { archivo: Blob; vista: string; ancho: number; alto: number; fecha: string };
 
 /** Achica la foto en el navegador (respetando la orientación del celular) y la pasa a JPEG. */
-async function prepararFoto(original: File): Promise<Preparada> {
+export async function prepararFoto(original: File): Promise<Preparada> {
   const imagen = await createImageBitmap(original, { imageOrientation: "from-image" });
   const escala = Math.min(1, LADO_MAXIMO / Math.max(imagen.width, imagen.height));
   const ancho = Math.round(imagen.width * escala);

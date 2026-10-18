@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { fotos } from "@/db/schema";
 import { modoDemo } from "./modo-demo";
@@ -15,6 +15,29 @@ export type Foto = {
   ancho: number | null;
   alto: number | null;
 };
+
+/** Foto sobre la que se marcan los lotes de un campo. */
+export type FotoMapa = { id: number; url: string; ancho: number; alto: number };
+
+/** Fotos de mapa de los campos que tienen una elegida (campoId → foto). */
+export async function mapasDeCampos(campos: { id: number; fotoMapaId?: number | null }[]) {
+  const mapas = new Map<number, FotoMapa>();
+  const conMapa = campos.filter((c) => c.fotoMapaId);
+  if (modoDemo() || !fotosConfiguradas() || !conMapa.length) return mapas;
+
+  const filas = await db
+    .select()
+    .from(fotos)
+    .where(inArray(fotos.id, conMapa.map((c) => c.fotoMapaId!)));
+  const urls = await urlsFirmadas(filas.map((f) => f.ruta));
+  for (const c of conMapa) {
+    const f = filas.find((x) => x.id === c.fotoMapaId);
+    const url = f && urls.get(f.ruta);
+    // Sin medidas no se puede respetar la proporción: se asume 4:3.
+    if (f && url) mapas.set(c.id, { id: f.id, url, ancho: f.ancho ?? 1600, alto: f.alto ?? 1200 });
+  }
+  return mapas;
+}
 
 /** Estado de la galería: si se pueden usar las fotos y las que hay, de la más nueva a la más vieja. */
 export async function fotosDe(destino: Destino): Promise<{ disponible: boolean; motivo?: string; fotos: Foto[] }> {

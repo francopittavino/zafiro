@@ -143,7 +143,8 @@ export function Datos({ datos }: { datos: { nombre: string; valor: string | null
 export function Seccion({ titulo, children, quiebre = false }: { titulo: string; children: React.ReactNode; quiebre?: boolean }) {
   return (
     <View style={estilos.seccion} break={quiebre} wrap>
-      <Text style={estilos.tituloSeccion} minPresenceAhead={40}>
+      {/* Que el título no quede solo al pie de la hoja: necesita lugar para unas filas debajo. */}
+      <Text style={estilos.tituloSeccion} minPresenceAhead={90}>
         {titulo}
       </Text>
       {children}

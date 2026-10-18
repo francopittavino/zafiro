@@ -19,6 +19,8 @@ import { guardarLabor } from "./acciones";
 import { Dialogo } from "@/components/app/dialogo";
 import { FormLote, FormProducto, FormTipoLabor, MasDatos } from "@/components/app/altas";
 import { CamposExtra, leerExtras } from "@/components/app/campos-extra";
+import { EditorDibujo, completas } from "@/components/app/mapa";
+import type { FotoMapa } from "@/lib/fotos";
 
 const NUEVO = "__nuevo__";
 type Alta = "lote" | "labor" | "producto";
@@ -74,6 +76,7 @@ export function FormularioLabor({
   contratistas,
   personalizados,
   stock,
+  mapas,
   inicial,
   laborId,
 }: {
@@ -85,6 +88,8 @@ export function FormularioLabor({
   contratistas: string[];
   personalizados: CampoPersonalizado[];
   stock: Existencia[];
+  /** Foto del mapa de cada campo (campoId → foto), para marcar manchones. */
+  mapas: Record<number, FotoMapa>;
   inicial?: ValoresIniciales;
   /** Si viene, el formulario edita esa labor en vez de crear una nueva. */
   laborId?: number;
@@ -133,6 +138,8 @@ export function FormularioLabor({
   const formulario = useRef<HTMLFormElement>(null);
   const [vueltaExtras, setVueltaExtras] = useState(0);
   const extrasLabor = personalizados.filter((c) => c.entidad === "labor");
+  const [zonas, setZonas] = useState<Dibujo[]>(inicial?.zonas ?? []);
+  const [enManchones, setEnManchones] = useState(Boolean(inicial?.zonas?.length));
   const [guardando, iniciarGuardado] = useTransition();
   // Alta en el momento (lote, labor o producto nuevo) y el registro creado a elegir.
   const [alta, setAlta] = useState<Alta | null>(null);
@@ -207,6 +214,8 @@ export function FormularioLabor({
     setLineas([]);
     setNotas("");
     setHoras("");
+    setZonas([]);
+    setEnManchones(false);
     setVueltaExtras((v) => v + 1);
   }
 
@@ -259,7 +268,7 @@ export function FormularioLabor({
           aporte: aporte || null,
           notas: notas || null,
           aplicacion: datosAplicacion,
-          zonas: inicial?.zonas ?? null,
+          zonas: enManchones && completas(zonas).length ? completas(zonas) : null,
           extras: formulario.current ? leerExtras(new FormData(formulario.current)) : {},
           descontarStock,
           insumos: lineas.map((l) => ({
@@ -394,6 +403,29 @@ export function FormularioLabor({
               />
             </fieldset>
           </div>
+
+          {lote && mapas[lote.campoId] && (
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enManchones}
+                  onChange={(e) => setEnManchones(e.target.checked)}
+                  className="size-5"
+                />
+                Se aplicó en manchones (marcarlos en el mapa)
+              </label>
+              {enManchones && (
+                <EditorDibujo
+                  foto={mapas[lote.campoId]}
+                  fondo={lotes.filter((l) => l.campoId === lote.campoId)}
+                  figuras={zonas}
+                  multiple
+                  alCambiar={setZonas}
+                />
+              )}
+            </div>
+          )}
 
           {cobro === "ha" ? (
             <label className={etiqueta}>

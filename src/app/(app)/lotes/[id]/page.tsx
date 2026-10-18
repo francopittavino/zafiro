@@ -6,7 +6,8 @@ import { ChipCultivo } from "@/components/app/chip-cultivo";
 import { BotonEditarLote } from "@/components/app/altas";
 import { GaleriaFotos } from "@/components/app/galeria-fotos";
 import { valoresExtra } from "@/components/app/campos-extra";
-import { fotosDe } from "@/lib/fotos";
+import { fotosDe, mapasDeCampos } from "@/lib/fotos";
+import { Leyenda, VistaMapa } from "@/components/app/mapa";
 import { obtenerDatos } from "@/lib/datos";
 import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
 import { fechaCorta, num, usd } from "@/lib/formato";
@@ -26,7 +27,10 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   const costos = costosDelCiclo(labores, otros.total);
   const margen = await margenDelLote(lote.id);
   const cosecha = datos.cosechas.find((c) => c.loteId === lote.id);
-  const galeria = await fotosDe({ tipo: "lote", id: lote.id });
+  const [galeria, mapas] = await Promise.all([fotosDe({ tipo: "lote", id: lote.id }), mapasDeCampos(campo ? [campo] : [])]);
+  const mapa = campo && mapas.get(campo.id);
+  const lotesDelCampo = datos.lotes.filter((l) => l.campoId === lote.campoId);
+  const manchones = labores.flatMap((l) => l.zonas ?? []);
   const personalizados = datos.camposPersonalizados ?? [];
   const partes = [
     { texto: "Insumos", valor: costos.insumos, clase: "bg-primary" },
@@ -43,7 +47,7 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
     { nombre: "Suelo", valor: lote.tipoSuelo },
     ...valoresExtra(personalizados.filter((c) => c.entidad === "lote"), lote.extras),
   ].filter((d) => d.valor);
-  const mapa =
+  const ubicacion =
     lote.latitud != null && lote.longitud != null
       ? `https://www.google.com/maps?q=${lote.latitud},${lote.longitud}`
       : null;
@@ -66,7 +70,7 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
             <ChipCultivo cultivo={lote.cultivo} />
           </div>
 
-          {(ficha.length > 0 || mapa || lote.notas) && (
+          {(ficha.length > 0 || ubicacion || lote.notas) && (
             <section className="bg-card rounded-xl border p-4 text-sm">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {ficha.map((d) => (
@@ -76,8 +80,8 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
                   </div>
                 ))}
               </dl>
-              {mapa && (
-                <a href={mapa} target="_blank" rel="noreferrer" className="text-zafiro mt-2 block text-sm font-bold">
+              {ubicacion && (
+                <a href={ubicacion} target="_blank" rel="noreferrer" className="text-zafiro mt-2 block text-sm font-bold">
                   Ver ubicación en el mapa →
                 </a>
               )}
@@ -148,6 +152,17 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
               Receta
             </Link>
           </div>
+
+          {mapa && lote.dibujo && (
+            <section className="flex flex-col gap-2">
+              <h2 className="font-bold">En el campo</h2>
+              <VistaMapa foto={mapa} lotes={lotesDelCampo} resaltado={lote.id} zonas={manchones} />
+              <Leyenda lotes={lotesDelCampo} />
+              {manchones.length > 0 && (
+                <p className="text-muted-foreground text-xs">En rojo punteado: manchones aplicados en las labores del lote.</p>
+              )}
+            </section>
+          )}
 
           <GaleriaFotos destino={{ tipo: "lote", id: lote.id }} {...galeria} />
         </div>

@@ -8,7 +8,8 @@ import { BotonEditarCampo } from "@/components/app/altas";
 import { valoresExtra } from "@/components/app/campos-extra";
 import { obtenerDatos } from "@/lib/datos";
 import { costosPorLote } from "@/lib/consultas";
-import { fotosDe } from "@/lib/fotos";
+import { fotosDe, mapasDeCampos } from "@/lib/fotos";
+import { MapaCampo } from "@/components/app/mapa";
 import { usd } from "@/lib/formato";
 import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
 
@@ -22,7 +23,7 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
   const filas = (await costosPorLote()).filter((f) => f.campoId === campo.id);
   const ha = filas.reduce((t, f) => t + f.lote.ha, 0);
   const total = filas.reduce((t, f) => t + f.costos.total, 0);
-  const galeria = await fotosDe({ tipo: "campo", id: campo.id });
+  const [galeria, mapas] = await Promise.all([fotosDe({ tipo: "campo", id: campo.id }), mapasDeCampos([campo])]);
   const personalizados = datos.camposPersonalizados ?? [];
   const gastosDelCampo = (datos.gastos ?? []).filter((g) => g.campoId === campo.id);
   const conStock = (datos.stock ?? []).filter((s) => s.campoId === campo.id && s.cantidad !== 0).length;
@@ -136,7 +137,16 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
             )}
           </section>
         </div>
-        <GaleriaFotos destino={{ tipo: "campo", id: campo.id }} {...galeria} />
+        <div className="flex flex-col gap-4">
+          <MapaCampo
+            campoId={campo.id}
+            foto={mapas.get(campo.id) ?? null}
+            fotos={galeria.fotos}
+            lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo }))}
+            disponible={galeria.disponible}
+          />
+          <GaleriaFotos destino={{ tipo: "campo", id: campo.id }} {...galeria} />
+        </div>
       </div>
     </>
   );
