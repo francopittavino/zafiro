@@ -1,6 +1,7 @@
 import { Encabezado } from "@/components/app/encabezado";
 import { obtenerDatos, type EntidadPersonalizable } from "@/lib/datos";
-import { EditorCamposPersonalizados, EditorLista } from "./editores";
+import { datosIngeniero } from "@/lib/recetas";
+import { EditorCamposPersonalizados, EditorLista, FormIngeniero } from "./editores";
 
 const ENTIDADES: { entidad: EntidadPersonalizable; titulo: string; ayuda: string }[] = [
   { entidad: "campo", titulo: "Campos", ayuda: "Ej. Dueño del campo, Acceso" },
@@ -13,6 +14,7 @@ const ENTIDADES: { entidad: EntidadPersonalizable; titulo: string; ayuda: string
 export default async function Ajustes() {
   const datos = await obtenerDatos();
   const personalizados = datos.camposPersonalizados ?? [];
+  const ingeniero = await datosIngeniero();
 
   return (
     <>
@@ -37,6 +39,11 @@ export default async function Ajustes() {
         </section>
 
         <div className="flex flex-col gap-4">
+          <section className="bg-card flex flex-col gap-2 rounded-xl border p-4">
+            <h2 className="font-bold">Datos del ingeniero</h2>
+            <p className="text-muted-foreground text-sm">Salen en el encabezado y la firma de recetas e informes en PDF.</p>
+            <FormIngeniero inicial={ingeniero} />
+          </section>
           <section className="bg-card flex flex-col gap-2 rounded-xl border p-4">
             <h2 className="font-bold">Categorías de gastos</h2>
             <p className="text-muted-foreground text-sm">Para los otros gastos: alquiler, flete, seguros…</p>

@@ -47,13 +47,13 @@ export default async function FichaProductor({ params }: PageProps<"/productores
             )}
           </section>
 
-          <Link
+          <a
             href={`/informes/pdf?productor=${productor.id}`}
             className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
           >
             <FileDown className="size-5" aria-hidden />
             Informe de la campaña en PDF
-          </Link>
+          </a>
         </div>
 
         <section>

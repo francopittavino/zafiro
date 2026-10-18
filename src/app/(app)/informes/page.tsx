@@ -1,99 +1,144 @@
 import Link from "next/link";
+import { FileDown } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
-import { obtenerDatos } from "@/lib/datos";
-import { laboresDetalladas, resumenPorCampo } from "@/lib/consultas";
+import { armarInforme, consultaFiltro, leerFiltro, type Agrupacion } from "@/lib/informe";
 import { NOMBRE_CATEGORIA, num, usd } from "@/lib/formato";
+import { Filtros } from "./filtros";
 
-export default async function Informes() {
-  const datos = await obtenerDatos();
-  const campos = (await resumenPorCampo()).filter((c) => c.total > 0);
-  const labores = await laboresDetalladas();
+const AGRUPACIONES: Agrupacion[] = ["campo", "lote", "cultivo", "productor"];
 
-  // Consumo de insumos de la campaña (cantidades totales y costo), útil para compras.
-  const consumo = new Map<string, { unidad: string; categoria: string; cantidad: number; costo: number }>();
-  for (const l of labores) {
-    for (const p of l.productos) {
-      const producto = datos.productos.find((x) => x.nombre === p.nombre)!;
-      const fila = consumo.get(p.nombre) ?? { unidad: p.unidad, categoria: producto.categoria, cantidad: 0, costo: 0 };
-      fila.cantidad += p.dosis * l.ha;
-      fila.costo += p.dosis * p.precio * l.ha;
-      consumo.set(p.nombre, fila);
-    }
-  }
-  const insumos = [...consumo.entries()].sort((a, b) => b[1].costo - a[1].costo);
+export default async function Informes({ searchParams }: PageProps<"/informes">) {
+  const sp = await searchParams;
+  const filtro = leerFiltro(sp);
+  const agrupar = AGRUPACIONES.find((a) => a === sp.agrupar) ?? "campo";
+  const informe = await armarInforme(filtro);
+  const { datos, totales } = informe;
+  const grupos = informe.agrupar(agrupar).filter((g) => g.total > 0);
+  const cultivos = [...new Set(datos.lotes.flatMap((l) => l.cultivo.split("/")).filter(Boolean))].sort();
+  const pdf = `/informes/pdf?${consultaFiltro(filtro)}`;
+  const partes = [
+    ["Insumos", totales.insumos],
+    ["Labores", totales.labores],
+    ["Cosecha", totales.cosecha],
+    ["Otros gastos", totales.otros],
+  ] as const;
 
   return (
     <>
-      <Encabezado volver="/mas" titulo="Informes" subtitulo={`Campaña ${datos.campania}`} />
+      <Encabezado
+        volver="/mas"
+        titulo="Informes"
+        subtitulo={`Campaña ${datos.campania} · ${informe.titulo}`}
+        acciones={
+          <a href={pdf} className="bg-primary text-primary-foreground flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-bold">
+            <FileDown className="size-4" aria-hidden />
+            PDF
+          </a>
+        }
+      />
 
-      <div className="grid gap-4 p-4 md:grid-cols-2 md:items-start md:p-0">
-        <section>
-          <h2 className="mb-2 font-bold">Margen bruto por lote</h2>
-          <ul className="bg-card divide-y rounded-xl border">
-            {datos.cosechas.map((c) => {
-              const lote = datos.lotes.find((l) => l.id === c.loteId)!;
-              return (
-                <li key={c.loteId}>
-                  <Link href={`/lotes/${lote.id}/margen`} className="hover:bg-muted/60 flex justify-between px-4 py-3">
-                    <span>
-                      <span className="block font-bold">
-                        {lote.codigo} {lote.nombre}
+      <div className="flex flex-col gap-4 p-4 md:p-0">
+        <Filtros productores={datos.productores ?? []} campos={datos.campos} lotes={datos.lotes} cultivos={cultivos} />
+
+        <section className="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4 md:grid-cols-6">
+          <div className="col-span-2">
+            <p className="text-muted-foreground text-xs">Costo total</p>
+            <p className="text-2xl font-black tabular-nums">USD {usd(totales.total)}</p>
+            <p className="text-muted-foreground text-xs">
+              {totales.ha ? `${usd(totales.total / totales.ha)} USD/ha · ${usd(totales.ha)} ha con costos` : "Sin costos cargados"}
+            </p>
+          </div>
+          {partes.map(([texto, valor]) => (
+            <div key={texto}>
+              <p className="text-muted-foreground text-xs">{texto}</p>
+              <p className="font-bold tabular-nums">USD {usd(valor)}</p>
+              <p className="text-muted-foreground text-xs">{totales.ha ? usd(valor / totales.ha) : 0} USD/ha</p>
+            </div>
+          ))}
+        </section>
+
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+          <section>
+            <h2 className="mb-2 font-bold">Costos por {agrupar}</h2>
+            {grupos.length === 0 ? (
+              <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">No hay costos con estos filtros.</p>
+            ) : (
+              <div className="bg-card overflow-hidden rounded-xl border text-sm">
+                <div className="text-muted-foreground grid grid-cols-[1fr_56px_80px_60px] gap-2 border-b px-4 py-2.5 text-xs font-bold">
+                  <span className="capitalize">{agrupar}</span>
+                  <span className="text-right">ha</span>
+                  <span className="text-right">USD</span>
+                  <span className="text-right">USD/ha</span>
+                </div>
+                {grupos.map((g) => (
+                  <div key={g.nombre} className="grid grid-cols-[1fr_56px_80px_60px] gap-2 border-b px-4 py-2.5 tabular-nums last:border-0">
+                    <span className="truncate">{g.nombre}</span>
+                    <span className="text-right">{usd(g.ha)}</span>
+                    <span className="text-right">{usd(g.total)}</span>
+                    <span className="text-right font-bold">{g.ha ? usd(g.total / g.ha) : "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h2 className="mt-6 mb-2 font-bold">Margen bruto por lote</h2>
+            {informe.margenes.length === 0 ? (
+              <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">
+                Ningún lote tiene la cosecha cargada (se carga desde la ficha del lote).
+              </p>
+            ) : (
+              <ul className="bg-card divide-y rounded-xl border">
+                {informe.margenes.map(({ fila, cosecha, resultado }) => (
+                  <li key={fila.lote.id}>
+                    <Link href={`/lotes/${fila.lote.id}/margen`} className="hover:bg-muted/60 flex justify-between gap-3 px-4 py-3">
+                      <span>
+                        <span className="block font-bold">
+                          {fila.lote.codigo} {fila.lote.nombre}
+                        </span>
+                        <span className="text-muted-foreground block text-xs">
+                          {fila.campo} · {fila.lote.cultivo} · {num(cosecha.rindeKgHa, 0)} kg/ha
+                        </span>
                       </span>
-                      <span className="text-muted-foreground block text-xs">
-                        {lote.cultivo} · {num(c.rindeKgHa, 0)} kg/ha
+                      <span className="text-right tabular-nums">
+                        <span className={`block font-bold ${resultado.margen < 0 ? "text-destructive" : "text-positivo"}`}>
+                          USD {usd(resultado.margen)}
+                        </span>
+                        <span className="text-muted-foreground block text-xs">{usd(resultado.margen / fila.lote.ha)} USD/ha</span>
                       </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 font-bold">Consumo de insumos</h2>
+            {informe.consumo.length === 0 ? (
+              <p className="bg-card text-muted-foreground rounded-xl border p-4 text-sm">Sin insumos aplicados.</p>
+            ) : (
+              <div className="bg-card overflow-hidden rounded-xl border text-sm">
+                <div className="text-muted-foreground grid grid-cols-[1fr_90px_80px] gap-2 border-b px-4 py-2.5 text-xs font-bold">
+                  <span>Producto</span>
+                  <span className="text-right">Cantidad</span>
+                  <span className="text-right">USD</span>
+                </div>
+                {informe.consumo.map((f) => (
+                  <div key={f.nombre} className="grid grid-cols-[1fr_90px_80px] gap-2 border-b px-4 py-2.5 tabular-nums last:border-0">
+                    <span className="min-w-0">
+                      <span className="block truncate">{f.nombre}</span>
+                      <span className="text-muted-foreground block text-xs">{NOMBRE_CATEGORIA[f.categoria]}</span>
                     </span>
-                    <span className="text-zafiro self-center text-sm font-bold">Ver →</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-muted-foreground mt-2 text-xs">
-            Aparecen los lotes con cosecha cargada ({datos.cosechas.length} de {datos.lotes.length}).
-          </p>
-
-          <h2 className="mt-6 mb-2 font-bold">Costos por campo</h2>
-          <div className="bg-card overflow-hidden rounded-xl border text-sm">
-            <div className="text-muted-foreground grid grid-cols-[1fr_60px_80px_60px] gap-2 border-b px-4 py-2.5 text-xs font-bold">
-              <span>Campo</span>
-              <span className="text-right">ha</span>
-              <span className="text-right">USD</span>
-              <span className="text-right">USD/ha</span>
-            </div>
-            {campos.map((c) => (
-              <div key={c.id} className="grid grid-cols-[1fr_60px_80px_60px] gap-2 border-b px-4 py-2.5 tabular-nums last:border-0">
-                <span className="truncate">{c.nombre}</span>
-                <span className="text-right">{usd(c.ha)}</span>
-                <span className="text-right">{usd(c.total)}</span>
-                <span className="text-right font-bold">{usd(c.usdHa)}</span>
+                    <span className="text-right">
+                      {num(f.cantidad, 1)} {f.unidad}
+                    </span>
+                    <span className="text-right font-bold">{usd(f.costo)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="mb-2 font-bold">Consumo de insumos</h2>
-          <div className="bg-card overflow-hidden rounded-xl border text-sm">
-            <div className="text-muted-foreground grid grid-cols-[1fr_90px_80px] gap-2 border-b px-4 py-2.5 text-xs font-bold">
-              <span>Producto</span>
-              <span className="text-right">Cantidad</span>
-              <span className="text-right">USD</span>
-            </div>
-            {insumos.map(([nombre, f]) => (
-              <div key={nombre} className="grid grid-cols-[1fr_90px_80px] gap-2 border-b px-4 py-2.5 tabular-nums last:border-0">
-                <span className="min-w-0">
-                  <span className="block truncate">{nombre}</span>
-                  <span className="text-muted-foreground block text-xs">{NOMBRE_CATEGORIA[f.categoria]}</span>
-                </span>
-                <span className="text-right">
-                  {num(f.cantidad, 1)} {f.unidad}
-                </span>
-                <span className="text-right font-bold">{usd(f.costo)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+            )}
+          </section>
+        </div>
       </div>
     </>
   );

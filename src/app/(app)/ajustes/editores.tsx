@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { X } from "lucide-react";
 import type { Catalogo, CampoPersonalizado, EntidadPersonalizable } from "@/lib/datos";
-import { entrada } from "@/components/app/altas";
+import { entrada, etiqueta } from "@/components/app/altas";
+import type { DatosIngeniero } from "@/lib/recetas";
+import { guardarDatosIngeniero } from "../recetas/acciones";
 import {
   crearCampoPersonalizado,
   crearEnLista,
@@ -152,5 +154,51 @@ export function EditorLista({
       agregar={(nombre) => crearEnLista(lista, { nombre })}
       quitar={(id) => quitarDeLista(lista, id)}
     />
+  );
+}
+
+export function FormIngeniero({ inicial }: { inicial: DatosIngeniero }) {
+  const [mensaje, setMensaje] = useState<{ error: boolean; texto: string } | null>(null);
+  const [guardando, iniciar] = useTransition();
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        iniciar(async () => {
+          const r = await guardarDatosIngeniero(Object.fromEntries([...f.entries()].map(([k, v]) => [k, String(v)])));
+          setMensaje(r.ok ? { error: false, texto: "Guardado." } : { error: true, texto: r.error });
+        });
+      }}
+      className="flex flex-col gap-3"
+    >
+      <div className="grid grid-cols-2 gap-3">
+        {(
+          [
+            ["ingeniero_nombre", "Nombre", "Ing. Agr. …"],
+            ["ingeniero_matricula", "Matrícula", ""],
+            ["ingeniero_telefono", "Teléfono", ""],
+            ["ingeniero_email", "Email", ""],
+          ] as const
+        ).map(([clave, texto, placeholder]) => (
+          <label key={clave} className={etiqueta}>
+            {texto}
+            <input name={clave} defaultValue={inicial[clave]} placeholder={placeholder} className={entrada} />
+          </label>
+        ))}
+      </div>
+      {mensaje && (
+        <p role={mensaje.error ? "alert" : "status"} className={mensaje.error ? "text-destructive text-sm" : "text-positivo text-sm font-bold"}>
+          {mensaje.texto}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={guardando}
+        className="bg-primary text-primary-foreground h-11 rounded-lg text-sm font-bold disabled:opacity-50"
+      >
+        {guardando ? "Guardando…" : "Guardar"}
+      </button>
+    </form>
   );
 }

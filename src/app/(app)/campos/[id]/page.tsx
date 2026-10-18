@@ -75,13 +75,13 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
               <Boxes className="size-5" aria-hidden />
               Stock ({conStock})
             </Link>
-            <Link
+            <a
               href={`/informes/pdf?campo=${campo.id}`}
               className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl text-sm font-bold"
             >
               <FileDown className="size-5" aria-hidden />
               Informe PDF
-            </Link>
+            </a>
           </div>
 
           <section>

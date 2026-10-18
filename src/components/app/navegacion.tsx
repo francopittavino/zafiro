@@ -114,7 +114,7 @@ const SECCIONES_CELULAR = [
 export function BarraInferior() {
   const pathname = usePathname();
   // El formulario de carga tiene su propia barra de acciones abajo.
-  if (pathname === "/registrar") return null;
+  if (pathname === "/registrar" || pathname === "/recetas/nueva") return null;
 
   return (
     <nav
