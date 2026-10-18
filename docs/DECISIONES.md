@@ -174,6 +174,7 @@ Principios ya acordados como recomendación:
 
 ### Técnicas (pendientes)
 - **Cambiar el PIN por uno más largo**: la base ya tiene los datos reales del cliente (se cambia en Vercel sin tocar código).
+- **Verificar la subida de fotos en producción** (se corrigió `SUPABASE_URL`; falta confirmar que `SUPABASE_SECRET_KEY` sea la correcta).
 - **Probar en el navegador (celular y PC)** lo del 2026-10-18: inicio, alta de campo con foto del mapa, alta de lote marcándolo en el mapa, coordenadas ("Usar mi ubicación", pegar desde Google Maps), cerrar/reabrir/iniciar cultivo, subir la receta oficial. Se verificó compilando, abriendo las páginas y con pruebas en la base, no a mano en pantalla.
 - Los campos y lotes existentes **no tienen coordenadas**: al editarlos las pide (ahora son obligatorias).
 - El historial de labores y la ficha del lote muestran solo el cultivo en curso; lo cerrado se ve en el informe de cierre. Evaluar un filtro por campaña en el historial si hace falta.
@@ -264,14 +265,16 @@ Principios ya acordados como recomendación:
 - **Campañas por cultivo** (migración 0007, aplicada): cultivo en curso por lote, cierre manual con informe de cierre, reabrir, iniciar el siguiente. Informes por campaña, filtro de productor siempre visible y resumen por cultivo y campo.
 - **Receta oficial en PDF** (bucket `documentos`), exportada junto al resumen. Al borrar una receta se desvinculan sus labores.
 - Coordenadas obligatorias, foto del mapa en el alta del campo y en el alta de lote, inicio sin montos.
-- Script `db:borrar-trabajos` listo y probado en seco (31 labores, 83 productos aplicados, 31 cultivos). **No se corrió.**
-- Commits: `0b5e2e5`, `9d70eb8`, `77bd8a2` (con push y deploy verificado).
+- Script `db:borrar-trabajos`: se corrió a pedido del dev (31 labores, 83 productos aplicados, 31 cultivos y la campaña 2024/25; copia JSON fuera del repo). Quedan 9 campos, 31 lotes, 85 insumos y 16 tipos de labor. La app se ajustó para funcionar sin campañas.
+- Subir la foto del campo en producción daba "SUPABASE_URL no es una dirección válida": se corrigió `SUPABASE_URL` en Vercel desde Chrome y se redesplegó. **No se probó la subida después** (la clave secreta está oculta en Vercel y no se pudo verificar).
+- **Guía de inicio** para el ingeniero: un doc en claude.ai y el PDF con la marca (`docs/Guia_Inicio_Zafiro.pdf`, 5 hojas, énfasis en los 7 primeros pasos), copiado al escritorio del dev.
+- Commits: `0b5e2e5`, `9d70eb8`, `77bd8a2`, `51acfe1`, `0756d93`, `1889eb7`.
 
-**Estado al cierre:** todo desplegado y andando en producción; los datos siguen siendo los de prueba.
+**Estado al cierre:** todo desplegado; la base quedó limpia (sin cultivos ni campañas) para que el ingeniero arranque con la guía.
 
 **Próximos pasos:**
-1. ~~Borrar los trabajos de prueba~~ ✔ (hecho). Probar subir la foto del campo en producción: si dice que la clave no es válida, el dev pega `SUPABASE_SECRET_KEY` en Vercel y redespliega.
-2. Recorrer en el celular lo nuevo (ver Preguntas abiertas → Técnicas) y cargar las coordenadas y la foto del mapa de cada campo.
-3. Cargar en Ajustes los datos del ingeniero y crear los productores con sus campos.
+1. Probar subir la foto del campo en producción: si dice que la clave no es válida, el dev pega `SUPABASE_SECRET_KEY` en Vercel y redespliega.
+2. Darle al ingeniero la guía de inicio y acompañar los 7 primeros pasos (datos propios, productores, coordenadas y foto de cada campo, lotes en el mapa, iniciar cultivos, precios, cotización).
+3. Recorrer en el celular lo nuevo (ver Preguntas abiertas → Técnicas).
 4. Mostrarle al cliente los PDF de muestra y preguntarle lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
 5. Cambiar el PIN por uno más largo (en local es `0000`).
