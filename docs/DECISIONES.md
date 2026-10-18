@@ -44,6 +44,7 @@
 | `docs/Preguntas_Cliente_Relevamiento.pdf` | Cuestionario para la reunión con el cliente (v3: solo lo pendiente después de la planilla y el prototipo) |
 | `docs/Respuesta cliente.pdf` | Cuestionario v1 respondido por el cliente (resumen en 1.1) |
 | `docs/fuentes/Preguntas_Cliente_Relevamiento.html` | Fuente editable del PDF del cuestionario |
+| `docs/Guia_Inicio_Zafiro.pdf` | Guía de inicio para el ingeniero (los 7 primeros pasos y el día a día); fuente en `docs/fuentes/Guia_Inicio.html`, se regenera con Edge headless |
 | `docs/ANALISIS_EXCEL_ANTERIOR.md` | Análisis de la planilla anterior del cliente: hojas, fórmulas, pantallas propuestas y campos obligatorios |
 | `docs/DECISIONES.md` | Este archivo |
 | `CLAUDE.md` | Instrucciones para Claude Code (stack, comandos, convenciones); se carga solo en cada sesión |

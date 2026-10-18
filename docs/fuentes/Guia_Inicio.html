@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía de inicio · Zafiro Agronomía</title>
+<!-- Fuente del PDF docs/Guia_Inicio_Zafiro.pdf.
+     Para regenerarlo: msedge --headless --no-pdf-header-footer --print-to-pdf=<salida.pdf> <este archivo> -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm 14mm 14mm 14mm; }
+  :root { --marino: #252A61; --zafiro: #0B63AE; --suave: #E7F0F9; --sol: #FFE600; --texto: #1F2330; --gris: #6B7080; --linea: #D9DCE3; }
+  * { box-sizing: border-box; }
+  body { font-family: Lato, "Segoe UI", sans-serif; font-size: 10.5pt; line-height: 1.45; color: var(--texto); margin: 0; }
+  b { color: var(--marino); }
+  .hoja { break-after: page; }
+  .hoja:last-child { break-after: auto; }
+
+  /* Portada */
+  .portada-top { display: flex; align-items: center; gap: 14pt; border-bottom: 4pt solid var(--sol); padding-bottom: 12pt; }
+  .portada-top img { width: 92pt; }
+  .portada-top h1 { font-size: 30pt; font-weight: 900; color: var(--marino); margin: 0; line-height: 1.05; }
+  .portada-top p { margin: 4pt 0 0; color: var(--gris); font-size: 11.5pt; }
+  .lead { font-size: 12pt; margin: 14pt 0 10pt; }
+  .recorrido { margin: 6pt 0 12pt; }
+
+  .antes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8pt; margin-top: 8pt; }
+  .dato { background: var(--suave); border-radius: 6pt; padding: 9pt 10pt; }
+  .dato .et { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .6pt; color: var(--gris); }
+  .dato .v { font-weight: 700; color: var(--marino); font-size: 10.5pt; margin-top: 2pt; }
+
+  h2.banda { background: var(--marino); color: #fff; font-size: 13pt; font-weight: 900; padding: 6pt 10pt; border-radius: 5pt; margin: 0 0 10pt; display: flex; justify-content: space-between; align-items: center; }
+  h2.banda span { font-weight: 400; font-size: 9pt; opacity: .85; }
+
+  /* Tarjeta de paso */
+  .paso { display: grid; grid-template-columns: 44pt 1fr; gap: 10pt; border: 0.8pt solid var(--linea); border-left: 4pt solid var(--zafiro); border-radius: 6pt; padding: 10pt 12pt; margin-bottom: 10pt; break-inside: avoid; }
+  .num { width: 38pt; height: 38pt; border-radius: 50%; background: var(--marino); color: #fff; font-weight: 900; font-size: 18pt; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -3pt 0 var(--sol); }
+  .paso h3 { margin: 0; font-size: 13pt; font-weight: 900; color: var(--marino); }
+  .donde { display: inline-block; margin: 3pt 0 6pt; font-size: 8.5pt; background: var(--suave); color: var(--zafiro); font-weight: 700; padding: 2pt 7pt; border-radius: 10pt; }
+  .paso p { margin: 0 0 5pt; }
+  .paso ul { margin: 0 0 5pt; padding-left: 0; list-style: none; }
+  .paso li { padding-left: 16pt; position: relative; margin: 2.5pt 0; }
+  .paso li::before { content: ""; position: absolute; left: 1pt; top: 3pt; width: 8pt; height: 8pt; border: 1.2pt solid var(--zafiro); border-radius: 2pt; }
+  .listo { font-size: 9pt; color: var(--gris); border-top: 0.6pt dashed var(--linea); padding-top: 4pt; margin-top: 4pt; }
+  .listo b { color: #22703A; }
+  .tip { background: #FFFBD1; border-left: 3pt solid var(--sol); border-radius: 4pt; padding: 6pt 9pt; font-size: 9.5pt; margin: 4pt 0; }
+  .tip b { color: var(--texto); }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; align-items: start; }
+  .figura { text-align: center; font-size: 8.5pt; color: var(--gris); }
+  .figura svg { width: 100%; height: auto; display: block; margin-bottom: 3pt; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin: 4pt 0 8pt; }
+  th { background: var(--suave); color: var(--marino); text-align: left; padding: 5pt 7pt; font-weight: 900; }
+  td { border-bottom: 0.6pt solid var(--linea); padding: 5pt 7pt; vertical-align: top; }
+  h3.sub { color: var(--marino); font-size: 12pt; font-weight: 900; margin: 12pt 0 4pt; }
+  .faq p { margin: 0 0 6pt; }
+  .pie { margin-top: 12pt; font-size: 8.5pt; color: var(--gris); border-top: 0.6pt solid var(--linea); padding-top: 6pt; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<!-- ─────────────── Hoja 1: portada y recorrido ─────────────── -->
+<section class="hoja">
+  <div class="portada-top">
+    <img src="../../public/marca/logo.png" alt="Zafiro Agronomía">
+    <div>
+      <h1>Guía de inicio</h1>
+      <p>Los primeros pasos para dejar el sistema listo y empezar a trabajar</p>
+    </div>
+  </div>
+
+  <p class="lead">El sistema ya tiene cargados sus <b>9 campos</b>, sus <b>31 lotes</b> y los <b>85 insumos</b> de la planilla. Antes de registrar la primera labor hay que completar <b>7 pasos</b>, una sola vez y en este orden: cada paso usa lo cargado en el anterior.</p>
+
+  <svg class="recorrido" viewBox="0 0 760 330" role="img" aria-label="Recorrido de los siete pasos">
+    <defs><marker id="fl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa0ae"/></marker></defs>
+    <g fill="none" stroke="#9aa0ae" stroke-width="1.6" stroke-dasharray="5 4">
+      <path d="M232 52H272" marker-end="url(#fl)"/><path d="M488 52H528" marker-end="url(#fl)"/>
+      <path d="M636 88V126" marker-end="url(#fl)"/>
+      <path d="M528 162H488" marker-end="url(#fl)"/><path d="M272 162H232" marker-end="url(#fl)"/>
+      <path d="M124 198V236" marker-end="url(#fl)"/><path d="M232 272H272" marker-end="url(#fl)"/>
+    </g>
+    <g font-family="Lato, Segoe UI, sans-serif">
+      <!-- fila 1 -->
+      <rect x="16" y="16" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="46" cy="52" r="18" fill="#252A61"/><text x="46" y="58" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">1</text>
+      <text x="74" y="47" font-weight="900" font-size="14" fill="#252A61">Datos del ingeniero</text><text x="74" y="65" font-size="11.5" fill="#6B7080">nombre y matrícula</text>
+      <rect x="272" y="16" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="302" cy="52" r="18" fill="#252A61"/><text x="302" y="58" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">2</text>
+      <text x="330" y="47" font-weight="900" font-size="14" fill="#252A61">Productores</text><text x="330" y="65" font-size="11.5" fill="#6B7080">uno por cliente</text>
+      <rect x="528" y="16" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="558" cy="52" r="18" fill="#252A61"/><text x="558" y="58" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">3</text>
+      <text x="586" y="47" font-weight="900" font-size="14" fill="#252A61">Campos</text><text x="586" y="65" font-size="11.5" fill="#6B7080">ubicación y foto del mapa</text>
+      <!-- fila 2 -->
+      <rect x="528" y="126" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="558" cy="162" r="18" fill="#252A61"/><text x="558" y="168" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">4</text>
+      <text x="586" y="157" font-weight="900" font-size="14" fill="#252A61">Lotes</text><text x="586" y="175" font-size="11.5" fill="#6B7080">marcarlos en el mapa</text>
+      <rect x="272" y="126" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="302" cy="162" r="18" fill="#252A61"/><text x="302" y="168" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">5</text>
+      <text x="330" y="157" font-weight="900" font-size="14" fill="#252A61">Iniciar cultivos</text><text x="330" y="175" font-size="11.5" fill="#6B7080">qué hay en cada lote</text>
+      <rect x="16" y="126" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="46" cy="162" r="18" fill="#252A61"/><text x="46" y="168" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">6</text>
+      <text x="74" y="157" font-weight="900" font-size="14" fill="#252A61">Insumos y precios</text><text x="74" y="175" font-size="11.5" fill="#6B7080">precios en dólares</text>
+      <!-- fila 3 -->
+      <rect x="16" y="236" width="216" height="72" rx="10" fill="#fff" stroke="#D9DCE3"/>
+      <circle cx="46" cy="272" r="18" fill="#252A61"/><text x="46" y="278" text-anchor="middle" fill="#fff" font-weight="900" font-size="17">7</text>
+      <text x="74" y="267" font-weight="900" font-size="14" fill="#252A61">Labores y cotización</text><text x="74" y="285" font-size="11.5" fill="#6B7080">tarifas, dólar y gasoil</text>
+      <rect x="272" y="236" width="216" height="72" rx="10" fill="#E7F0F9" stroke="#0B63AE" stroke-width="2"/>
+      <circle cx="302" cy="272" r="18" fill="#FFE600"/><text x="302" y="278" text-anchor="middle" fill="#252A61" font-weight="900" font-size="17">✓</text>
+      <text x="330" y="267" font-weight="900" font-size="14" fill="#252A61">¡Listo para trabajar!</text><text x="330" y="285" font-size="11.5" fill="#252A61">primera labor con + Registrar</text>
+    </g>
+  </svg>
+
+  <div class="antes">
+    <div class="dato"><div class="et">Dirección</div><div class="v">zafiro-five.vercel.app</div></div>
+    <div class="dato"><div class="et">Para entrar</div><div class="v">PIN de acceso (la sesión dura 30 días)</div></div>
+    <div class="dato"><div class="et">Dónde se usa</div><div class="v">PC y celular, con los mismos datos</div></div>
+  </div>
+  <div class="tip" style="margin-top:10pt"><b>En el celular:</b> abra la dirección en el navegador y use “Agregar a la pantalla de inicio”: queda como una aplicación más. Las secciones están en la barra de abajo (<b>Inicio · Lotes · + Registrar · Historial · Más</b>); en la PC, en la barra de la izquierda.</div>
+</section>
+
+<!-- ─────────────── Hoja 2: pasos 1 a 3 ─────────────── -->
+<section class="hoja">
+  <h2 class="banda">Primeros pasos <span>Pasos 1 a 3 · datos propios, productores y campos</span></h2>
+
+  <div class="paso">
+    <div class="num">1</div>
+    <div>
+      <h3>Cargar sus datos de ingeniero</h3>
+      <div class="donde">Ajustes → Datos del ingeniero</div>
+      <p>Estos datos salen en el encabezado y en la firma de <b>todos los PDF</b> que reciben sus clientes (recetas, labores e informes).</p>
+      <ul><li>Nombre completo</li><li>Matrícula</li><li>Teléfono y correo de contacto</li></ul>
+      <div class="listo"><b>Listo cuando:</b> al descargar cualquier PDF aparece su nombre arriba a la derecha.</div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="num">2</div>
+    <div>
+      <h3>Cargar los productores</h3>
+      <div class="donde">Productores → + Productor</div>
+      <p>Un productor por cada cliente que asesora. Ellos no entran al sistema: reciben los PDF. Agruparlos permite sacar un informe con <b>todos los campos de un productor</b>, aunque tenga el mismo cultivo repartido en varios.</p>
+      <ul><li>Nombre o razón social</li><li>CUIT, teléfono, correo y localidad (opcionales, pero salen en los informes)</li></ul>
+      <div class="listo"><b>Listo cuando:</b> la lista de Productores tiene a todos sus clientes.</div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="num">3</div>
+    <div>
+      <h3>Revisar cada campo: productor, ubicación y foto del mapa</h3>
+      <div class="donde">Campos y lotes → tocar el campo → Editar</div>
+      <div class="dos">
+        <div>
+          <ul>
+            <li>Elegir su <b>productor</b></li>
+            <li>Completar <b>latitud y longitud</b> (obligatorias)</li>
+            <li>Localidad y provincia</li>
+            <li>Guardar, y en la sección <b>Mapa</b> de la ficha tocar <b>Subir foto del mapa</b></li>
+          </ul>
+          <div class="tip"><b>Coordenadas en un toque:</b> en Google Maps mantenga apretado el campo y copie los números que aparecen; se pegan los dos juntos en el formulario. Si está parado en el campo, use <b>Usar mi ubicación</b>.</div>
+        </div>
+        <div class="figura">
+          <svg viewBox="0 0 300 190" role="img" aria-label="Foto aérea con los lotes marcados">
+            <rect x="0" y="0" width="300" height="190" rx="8" fill="#7f8c5a"/>
+            <rect x="12" y="12" width="128" height="76" fill="#c9a86a"/><rect x="152" y="12" width="136" height="76" fill="#6f9a4a"/>
+            <rect x="12" y="102" width="128" height="76" fill="#8fae5c"/><rect x="152" y="102" width="136" height="76" fill="#5e8f43"/>
+            <path d="M0 95H300M146 0V190" stroke="#d8c9a3" stroke-width="5"/>
+            <polygon points="12,12 140,12 140,88 12,88" fill="#f59e0b" fill-opacity=".45" stroke="#FFE600" stroke-width="3"/>
+            <polygon points="152,12 288,12 288,88 152,88" fill="#16a34a" fill-opacity=".35" stroke="#fff" stroke-width="1.5"/>
+            <rect x="52" y="40" width="48" height="22" rx="3" fill="#252A61"/><text x="76" y="55" text-anchor="middle" font-family="Lato,Segoe UI" font-size="11" font-weight="900" fill="#fff">SM 1</text>
+            <rect x="196" y="40" width="48" height="22" rx="3" fill="#fff"/><text x="220" y="55" text-anchor="middle" font-family="Lato,Segoe UI" font-size="11" font-weight="900" fill="#252A61">SM 2</text>
+          </svg>
+          Una captura satelital de Google Maps o una foto de dron, con todo el campo a la vista.
+        </div>
+      </div>
+      <div class="listo"><b>Listo cuando:</b> cada campo tiene productor, coordenadas y su foto del mapa.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── Hoja 3: pasos 4 y 5 ─────────────── -->
+<section class="hoja">
+  <h2 class="banda">Primeros pasos <span>Pasos 4 y 5 · lotes en el mapa y cultivos</span></h2>
+
+  <div class="paso">
+    <div class="num">4</div>
+    <div>
+      <h3>Revisar los lotes y marcarlos en el mapa</h3>
+      <div class="donde">Ficha del campo → Mapa → Marcar lotes</div>
+      <div class="dos">
+        <div>
+          <p>Con la foto del campo cargada, cada lote se dibuja tocando sus esquinas. Después se pinta solo con el <b>color de su cultivo</b> y aparece en la ficha del campo y en los PDF.</p>
+          <ul>
+            <li>Elegir el lote en la lista de arriba</li>
+            <li>Tocar la foto en cada esquina, siguiendo el borde</li>
+            <li>Tocar <b>Guardar</b>: pasa solo al siguiente lote sin marcar</li>
+            <li>Revisar en cada lote las <b>hectáreas</b> y las <b>coordenadas</b> (Editar)</li>
+          </ul>
+          <div class="tip"><b>Si se equivoca en un punto,</b> <b>Deshacer</b> borra el último. La figura se cierra sola: no hace falta volver a tocar el primer punto.</div>
+        </div>
+        <div class="figura">
+          <svg viewBox="0 0 300 200" role="img" aria-label="Marcar un lote tocando sus esquinas">
+            <rect x="0" y="0" width="300" height="200" rx="8" fill="#7f8c5a"/>
+            <rect x="30" y="26" width="240" height="148" fill="#8fae5c"/>
+            <polygon points="40,36 250,44 258,160 46,166" fill="#FFE600" fill-opacity=".3" stroke="#FFE600" stroke-width="3"/>
+            <g font-family="Lato,Segoe UI" font-size="12" font-weight="900">
+              <circle cx="40" cy="36" r="11" fill="#252A61"/><text x="40" y="40" text-anchor="middle" fill="#fff">1</text>
+              <circle cx="250" cy="44" r="11" fill="#fff" stroke="#252A61" stroke-width="2"/><text x="250" y="48" text-anchor="middle" fill="#252A61">2</text>
+              <circle cx="258" cy="160" r="11" fill="#fff" stroke="#252A61" stroke-width="2"/><text x="258" y="164" text-anchor="middle" fill="#252A61">3</text>
+              <circle cx="46" cy="166" r="11" fill="#fff" stroke="#252A61" stroke-width="2"/><text x="46" y="170" text-anchor="middle" fill="#252A61">4</text>
+            </g>
+            <path d="M178 118c0-8 10-8 10 0v-16c0-8 10-8 10 0v10c0-7 10-7 10 0v4c0-7 10-7 10 0v18c0 14-10 22-22 22h-6c-10 0-16-8-20-16l-8-14c-4-7 4-12 9-6z" fill="#fff" stroke="#252A61" stroke-width="2"/>
+          </svg>
+          Cuatro toques, uno por esquina, y el lote queda marcado.
+        </div>
+      </div>
+      <div class="listo"><b>Listo cuando:</b> la ficha del campo muestra todos sus lotes pintados (abajo del mapa avisa cuáles faltan).</div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="num">5</div>
+    <div>
+      <h3>Iniciar el cultivo de cada lote</h3>
+      <div class="donde">Ficha del lote → Iniciar cultivo</div>
+      <p>Todo lo que se carga (labores, recetas, gastos y cosecha) va al <b>cultivo en curso</b> del lote. Por eso, hasta que el lote no tenga uno, no se le pueden cargar trabajos: en las listas aparece como “sin cultivo”.</p>
+      <ul><li>Cultivo (soja, maíz, trigo, girasol…)</li><li>Campaña, por ejemplo <b>2026/27</b> (si es nueva, se crea sola)</li><li>Variedad o híbrido y fecha de siembra, si ya los sabe</li></ul>
+      <div class="tip"><b>Atajo:</b> la pantalla de <b>Inicio</b> lista, en “Para hacer”, todos los lotes que todavía no tienen cultivo. Tocando cada uno se va directo a su ficha.</div>
+      <div class="listo"><b>Listo cuando:</b> en Inicio ya no aparece el aviso de lotes sin cultivo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── Hoja 4: pasos 6 y 7 + listo ─────────────── -->
+<section class="hoja">
+  <h2 class="banda">Primeros pasos <span>Pasos 6 y 7 · insumos, labores y cotización</span></h2>
+
+  <div class="paso">
+    <div class="num">6</div>
+    <div>
+      <h3>Revisar los insumos y sus precios</h3>
+      <div class="donde">Insumos y precios</div>
+      <p>Los 85 insumos de la planilla ya están cargados con su último precio. Conviene actualizarlos antes de la primera labor, porque <b>cada labor guarda el precio del día</b> en que se carga.</p>
+      <ul><li>Actualizar precios en dólares con <b>Nuevo precio</b></li><li>Agregar lo que falte con <b>+ Insumo</b> (también se puede crear en el momento, al cargar una labor)</li><li>Completar principio activo, banda y carencia: salen en las recetas</li></ul>
+      <div class="listo"><b>Listo cuando:</b> los productos que va a usar esta campaña tienen su precio actual.</div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="num">7</div>
+    <div>
+      <h3>Revisar las labores y la cotización</h3>
+      <div class="donde">Labores y tarifas → Actualizar cotización</div>
+      <p>El costo de cada labor sale de su tarifa: <b>litros de gasoil por hectárea</b> (convertidos con el precio del gasoil y el dólar) o un <b>monto fijo en USD por hectárea</b>.</p>
+      <ul><li>Cargar el tipo de cambio y el precio del gasoil del día</li><li>Revisar las tarifas de las 16 labores cargadas y agregar las que falten con <b>+ Labor</b></li></ul>
+      <div class="listo"><b>Listo cuando:</b> al elegir una labor en Registrar, el costo por hectárea que propone es el correcto.</div>
+    </div>
+  </div>
+
+  <div class="paso" style="border-left-color: var(--sol); background: #FFFDF0;">
+    <div class="num" style="background: var(--sol); color: var(--marino); box-shadow: none;">✓</div>
+    <div>
+      <h3>¡Listo! La primera labor</h3>
+      <div class="donde">+ Registrar</div>
+      <p>Elija lote, fecha y labor; agregue los productos con su dosis por hectárea y guarde. El sistema calcula cantidades y costos, descuenta el stock del campo y ofrece el <b>PDF para el cliente</b> con el mapa, los productos y el detalle de costo.</p>
+      <div class="tip"><b>Si fue en manchones,</b> marque “Se aplicó en manchones” y dibújelos sobre el mapa: salen en rojo en el PDF.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── Hoja 5: el día a día ─────────────── -->
+<section class="hoja">
+  <h2 class="banda">Después: el día a día <span>lo que se usa en cada salida al campo</span></h2>
+
+  <table>
+    <tr><th style="width:22%">Herramienta</th><th style="width:30%">Dónde</th><th>Para qué</th></tr>
+    <tr><td><b>Labor</b></td><td>+ Registrar</td><td>Pulverización, siembra, fertilización… con productos, costo y PDF para el cliente.</td></tr>
+    <tr><td><b>Receta</b></td><td>Ficha del lote → Receta</td><td>Resumen con objetivo y dosis. Se adjunta el <b>PDF de la receta oficial de la provincia</b> y al exportar salen las dos juntas.</td></tr>
+    <tr><td><b>Gastos</b></td><td>Otros gastos, o ficha del lote o del campo</td><td>Alquiler, flete, seguros. El gasto de un campo entero se reparte entre sus lotes por hectárea.</td></tr>
+    <tr><td><b>Stock</b></td><td>Stock, o ficha del campo</td><td>Ingresos de insumos por campo; cada labor descuenta sola lo aplicado.</td></tr>
+    <tr><td><b>Cosecha</b></td><td>Ficha del lote → Cosecha</td><td>Rinde, precio, arrendamiento y flete: con esto sale el margen bruto.</td></tr>
+    <tr><td><b>Informes</b></td><td>Informes → Exportar PDF</td><td>Por productor, campo, lote, cultivo o campaña completa.</td></tr>
+  </table>
+
+  <h3 class="sub">Al terminar un cultivo</h3>
+  <svg viewBox="0 0 760 120" role="img" aria-label="Ciclo de un cultivo" style="width:100%;height:auto">
+    <defs><marker id="fl2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa0ae"/></marker></defs>
+    <g fill="none" stroke="#9aa0ae" stroke-width="1.6"><path d="M150 40H172" marker-end="url(#fl2)"/><path d="M322 40H344" marker-end="url(#fl2)"/><path d="M494 40H516" marker-end="url(#fl2)"/><path d="M590 64V98H82V68" marker-end="url(#fl2)" stroke-dasharray="5 4"/></g>
+    <g font-family="Lato,Segoe UI" font-size="13" font-weight="900" text-anchor="middle">
+      <rect x="12" y="16" width="138" height="48" rx="9" fill="#fff" stroke="#D9DCE3"/><text x="81" y="45" fill="#252A61">Iniciar cultivo</text>
+      <rect x="172" y="16" width="150" height="48" rx="9" fill="#fff" stroke="#D9DCE3"/><text x="247" y="45" fill="#252A61">Labores y gastos</text>
+      <rect x="344" y="16" width="150" height="48" rx="9" fill="#fff" stroke="#D9DCE3"/><text x="419" y="45" fill="#252A61">Cargar cosecha</text>
+      <rect x="516" y="16" width="148" height="48" rx="9" fill="#E7F0F9" stroke="#0B63AE" stroke-width="2"/><text x="590" y="45" fill="#252A61">Cerrar cultivo</text>
+      <text x="336" y="114" font-size="11" font-weight="400" fill="#6B7080">sale el informe de cierre y el lote queda libre para el siguiente cultivo</text>
+    </g>
+  </svg>
+  <p>En la ficha del lote, <b>Cerrar cultivo</b> abre el <b>informe de cierre</b>: costo total y por hectárea, margen bruto, insumos y detalle de labores, listo en PDF. Si se cerró por error, en “Cultivos anteriores” está <b>Reabrir</b>.</p>
+
+  <h3 class="sub">Preguntas frecuentes</h3>
+  <div class="faq">
+    <p><b>No me deja elegir un lote al registrar.</b> El lote no tiene cultivo en curso: entre a su ficha y toque Iniciar cultivo.</p>
+    <p><b>Me equivoqué en una labor.</b> En Historial, toque la labor y elija Editar. Duplicar repite la misma mezcla en otro lote.</p>
+    <p><b>¿Si cambio un precio, cambian las labores ya cargadas?</b> No: cada labor guarda el precio del día en que se cargó.</p>
+    <p><b>¿Hay que guardar o hacer copias?</b> No: todo queda guardado al instante y se ve igual en la PC y en el celular.</p>
+  </div>
+
+  <div class="pie"><span>Zafiro Agronomía · Guía de inicio</span><span>Octubre 2026</span></div>
+</section>
+
+</body>
+</html>
