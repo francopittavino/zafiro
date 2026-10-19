@@ -11,6 +11,7 @@ import { costosPorLote } from "@/lib/consultas";
 import { fotosDe, mapasDeCampos } from "@/lib/fotos";
 import { MapaCampo } from "@/components/app/mapa";
 import { usd } from "@/lib/formato";
+import { ubicacionGms } from "@/lib/coordenadas";
 import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
 
 export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) {
@@ -72,7 +73,7 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
               </dl>
               {mapa && (
                 <a href={mapa} target="_blank" rel="noreferrer" className="text-zafiro mt-2 block font-bold">
-                  Ver ubicación en el mapa →
+                  {ubicacionGms(campo.latitud!, campo.longitud!)} · Ver en el mapa →
                 </a>
               )}
               {campo.notas && <p className="text-muted-foreground mt-2 whitespace-pre-line">{campo.notas}</p>}

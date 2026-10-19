@@ -11,6 +11,7 @@ import { Leyenda, VistaMapa } from "@/components/app/mapa";
 import { ciclosDelLote, listarCampanias, obtenerDatos } from "@/lib/datos";
 import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
 import { campaniaSugerida, fechaCorta, num, usd } from "@/lib/formato";
+import { ubicacionGms } from "@/lib/coordenadas";
 import { BotonNuevoGasto } from "../../gastos/formulario-gasto";
 import { BotonCosecha } from "./cosecha";
 import { BotonCerrarCultivo, BotonIniciarCultivo, HistorialCultivos } from "./cultivo";
@@ -110,7 +111,7 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
               </dl>
               {ubicacion && (
                 <a href={ubicacion} target="_blank" rel="noreferrer" className="text-zafiro mt-2 block text-sm font-bold">
-                  Ver ubicación en el mapa →
+                  {ubicacionGms(lote.latitud!, lote.longitud!)} · Ver en el mapa →
                 </a>
               )}
               {lote.notas && <p className="text-muted-foreground mt-2 whitespace-pre-line">{lote.notas}</p>}

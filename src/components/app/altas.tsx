@@ -11,6 +11,7 @@ import { CamposExtra, leerExtras } from "./campos-extra";
 import type { Campo, Catalogo, CampoPersonalizado, Lote, Producto, Productor } from "@/lib/datos";
 import { CATEGORIAS_LABOR, CATEGORIAS_PRODUCTO, CULTIVOS_SUGERIDOS, UNIDADES } from "@/lib/catalogos";
 import { campaniaSugerida, hoyIso, leerNumero, numeroEditable } from "@/lib/formato";
+import { aGms, leerCoordenada, leerPar, type Eje } from "@/lib/coordenadas";
 import { cn } from "@/lib/utils";
 import {
   crearEnLista,
@@ -86,25 +87,38 @@ export function numeroOpcional(f: FormData, nombre: string) {
   return valor ? leerNumero(valor) : null;
 }
 
-const invalido = (...valores: (number | null)[]) => valores.some((v) => v !== null && Number.isNaN(v));
-const valorTexto = (v: number | null | undefined) => (v == null ? "" : numeroEditable(v));
+const textoGms = (v: number | null | undefined, eje: Eje) => (v == null ? "" : aGms(v, eje));
+const MENSAJE_COORDENADAS = `Completá la latitud y la longitud (ej. 32°28'57.14"S y 59°15'19.07"O).`;
+
+/** Lee latitud y longitud del formulario (en grados, minutos y segundos o decimales). */
+function leerCoordenadas(f: FormData) {
+  const latitud = leerCoordenada(String(f.get("latitud") ?? ""), "lat");
+  const longitud = leerCoordenada(String(f.get("longitud") ?? ""), "lon");
+  return Number.isNaN(latitud) || Number.isNaN(longitud) ? null : { latitud, longitud };
+}
 
 /**
- * Latitud y longitud (obligatorias). Se pueden pegar juntas como las copia Google Maps
- * ("-32.48254, -58.23721") o tomar la ubicación del celular parado en el campo.
+ * Latitud y longitud (obligatorias), en grados, minutos y segundos (59°15'19.07"O).
+ * Se pueden pegar juntas como las copia Google Maps o tomar la ubicación del celular parado en el campo.
  */
 function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?: number | null }) {
-  const [lat, setLat] = useState(valorTexto(latitud));
-  const [lon, setLon] = useState(valorTexto(longitud));
+  const [lat, setLat] = useState(textoGms(latitud, "lat"));
+  const [lon, setLon] = useState(textoGms(longitud, "lon"));
   const [aviso, setAviso] = useState("");
   const [buscando, setBuscando] = useState(false);
 
   function pegar(e: React.ClipboardEvent<HTMLInputElement>) {
-    const par = e.clipboardData.getData("text").match(/(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)/);
+    const par = leerPar(e.clipboardData.getData("text"));
     if (!par) return;
     e.preventDefault();
-    setLat(par[1].replace(".", ","));
-    setLon(par[2].replace(".", ","));
+    setLat(aGms(par[0], "lat"));
+    setLon(aGms(par[1], "lon"));
+  }
+
+  /** Al salir del campo, lo que se escribió se pasa al formato 59°15'19.07"O (si se entiende). */
+  function ordenar(texto: string, eje: Eje, poner: (v: string) => void) {
+    const valor = leerCoordenada(texto, eje);
+    if (!Number.isNaN(valor)) poner(aGms(valor, eje));
   }
 
   function miUbicacion() {
@@ -113,8 +127,8 @@ function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?
     setAviso("");
     navigator.geolocation.getCurrentPosition(
       (p) => {
-        setLat(numeroEditable(Math.round(p.coords.latitude * 1e6) / 1e6));
-        setLon(numeroEditable(Math.round(p.coords.longitude * 1e6) / 1e6));
+        setLat(aGms(p.coords.latitude, "lat"));
+        setLon(aGms(p.coords.longitude, "lon"));
         setBuscando(false);
       },
       () => {
@@ -133,11 +147,12 @@ function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?
           <input
             name="latitud"
             className={entrada}
-            inputMode="decimal"
+            autoComplete="off"
             value={lat}
             onChange={(e) => setLat(e.target.value)}
+            onBlur={(e) => ordenar(e.target.value, "lat", setLat)}
             onPaste={pegar}
-            placeholder="-32,4825"
+            placeholder={`32°28'57.14"S`}
             required
           />
         </label>
@@ -146,15 +161,20 @@ function Coordenadas({ latitud, longitud }: { latitud?: number | null; longitud?
           <input
             name="longitud"
             className={entrada}
-            inputMode="decimal"
+            autoComplete="off"
             value={lon}
             onChange={(e) => setLon(e.target.value)}
+            onBlur={(e) => ordenar(e.target.value, "lon", setLon)}
             onPaste={pegar}
-            placeholder="-58,2372"
+            placeholder={`59°15'19.07"O`}
             required
           />
         </label>
       </div>
+      <p className="text-muted-foreground text-xs">
+        Grados, minutos y segundos. En el celular también podés escribir “59 15 19,07”: sin letra se toma sur y
+        oeste.
+      </p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <button
           type="button"
@@ -295,10 +315,9 @@ export function FormCampo({
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        const latitud = numeroOpcional(f, "latitud");
-        const longitud = numeroOpcional(f, "longitud");
-        if (latitud === null || longitud === null || invalido(latitud, longitud))
-          return setError("Completá la latitud y la longitud (ej. -32,4825 y -58,2372).");
+        const coordenadas = leerCoordenadas(f);
+        if (!coordenadas) return setError(MENSAJE_COORDENADAS);
+        const { latitud, longitud } = coordenadas;
         const productor = String(f.get("productorId") ?? "");
         enviar(async () => {
           const r = await guardarCampo(
@@ -456,10 +475,9 @@ export function FormLote({
         const f = new FormData(e.currentTarget);
         const ha = leerNumero(String(f.get("ha")));
         if (!(ha > 0)) return setError("La superficie tiene que ser un número mayor a 0.");
-        const latitud = numeroOpcional(f, "latitud");
-        const longitud = numeroOpcional(f, "longitud");
-        if (latitud === null || longitud === null || invalido(latitud, longitud))
-          return setError("Completá la latitud y la longitud (ej. -32,4825 y -58,2372).");
+        const coordenadas = leerCoordenadas(f);
+        if (!coordenadas) return setError(MENSAJE_COORDENADAS);
+        const { latitud, longitud } = coordenadas;
         const tenencia = String(f.get("tenencia") ?? "");
         if (dibujoTocado && dibujo.length && !completas(dibujo).length)
           return setError("Marcá al menos 3 puntos del lote en el mapa (o borrá el contorno).");

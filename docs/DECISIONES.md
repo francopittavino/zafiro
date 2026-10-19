@@ -156,6 +156,7 @@ Principios ya acordados como recomendación:
 | 2026-10-18 | Borrar los trabajos de prueba con `npm run db:borrar-trabajos` (sin `--confirmar` solo muestra qué borraría): labores, recetas, gastos, stock, cultivos y campañas vacías. **Quedan** campos, lotes, insumos, tipos de labor y catálogos. **Se corrió el 2026-10-18** (31 labores, 83 productos aplicados, 31 cultivos y la campaña 2024/25); copia en JSON fuera del repo | Pedido del dev: el ingeniero carga todo de cero |
 | 2026-10-18 | La app funciona **sin campañas**: si no hay ninguna, se usa la de la fecha (`campaniaSugerida`, junio a mayo) y se crea al iniciar el primer cultivo o cargar un gasto | Después del borrado no quedó ninguna campaña |
 | 2026-10-18 | `SUPABASE_URL` corregida en Vercel (Production) + redeploy. Las variables de Supabase están solo en Production | Subir la foto del campo daba "SUPABASE_URL no es una dirección válida" |
+| 2026-10-19 | **Coordenadas en grados, minutos y segundos** (`59°15'19.07"O`, `32°28'57.14"S`) en los formularios y las fichas de campo y lote. En la base siguen en grados decimales (sin migración). Se acepta también `59 15 19,07` (sin letra = sur/oeste), decimales y pegar el par desde Google Maps; al salir del campo se ordena al formato. `src/lib/coordenadas.ts` | Pedido del cliente (ya usa la app) |
 
 ## 5. Preguntas abiertas
 

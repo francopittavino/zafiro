@@ -43,7 +43,7 @@ const fechaOpcional = (v: unknown) => (fechaValida(v) ? (v as string) : null);
 // Las coordenadas son obligatorias en campos y lotes (pedido del cliente).
 const latitudValida = (v: unknown) => numeroValido(v, -90) && (v as number) <= 90;
 const longitudValida = (v: unknown) => numeroValido(v, -180) && (v as number) <= 180;
-const MENSAJE_COORDENADAS = "Completá la latitud y la longitud (ej. -32,4825 y -58,2372).";
+const MENSAJE_COORDENADAS = `Completá la latitud y la longitud (ej. 32°28'57.14"S y 59°15'19.07"O).`;
 
 /** Postgres avisa con 23505 cuando se repite un valor único (nombre, código). */
 function esDuplicado(error: unknown) {
