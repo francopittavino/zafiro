@@ -4,15 +4,17 @@ import { laborDescontoStock, obtenerDatos } from "@/lib/datos";
 import { tarifaUsdHa } from "@/lib/calculos";
 import { mapasDeCampos } from "@/lib/fotos";
 import { listarRecetas } from "@/lib/recetas";
+import { ordenPorId } from "@/lib/ordenes";
 import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 
 /**
  * /registrar              → labor nueva (opcional ?lote=ID para dejarlo elegido)
  * /registrar?labor=ID     → editar esa labor
  * /registrar?duplicar=ID  → labor nueva con los datos de otra (misma mezcla, fecha de hoy)
+ * /registrar?orden=ID     → labor nueva con lo que dice la orden de trabajo (al guardar, la orden queda realizada)
  */
 export default async function Registrar({ searchParams }: PageProps<"/registrar">) {
-  const { lote, labor: editar, duplicar } = await searchParams;
+  const { lote, labor: editar, duplicar, orden: deOrden } = await searchParams;
   const datos = await obtenerDatos();
   const [mapas, recetas] = await Promise.all([mapasDeCampos(datos.campos.map((c) => c.id)), listarRecetas()]);
 
@@ -44,6 +46,25 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
       extras: modo === "editar" ? origen.extras : null,
       descontoStock: modo === "editar" ? await laborDescontoStock(origen.id) : true,
     };
+  } else if (typeof deOrden === "string") {
+    const orden = await ordenPorId(Number(deOrden));
+    if (!orden) notFound();
+    inicial = {
+      loteId: orden.loteId,
+      // Se registra cuando ya se hizo: la fecha es la de hoy (se puede cambiar).
+      tipoLaborId: orden.tipoLaborId,
+      ha: orden.ha,
+      costoLaborHa: orden.costoLaborHa ?? undefined,
+      notas: orden.instrucciones ?? "",
+      insumos: orden.items,
+      modalidad: orden.modalidad,
+      contratista: orden.contratista,
+      cobro: orden.cobro,
+      horas: orden.horas,
+      costoHora: orden.costoHora,
+      recetaId: orden.recetaId,
+      descontoStock: true,
+    };
   } else if (typeof lote === "string") {
     const elegido = datos.lotes.find((l) => l.id === Number(lote));
     if (elegido) inicial = { loteId: elegido.id, ha: elegido.ha };
@@ -58,13 +79,13 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
   return (
     <>
       <Encabezado
-        volver={modo === "nueva" ? "/inicio" : "/historial"}
+        volver={typeof deOrden === "string" ? `/ordenes/${deOrden}` : modo === "nueva" ? "/inicio" : "/historial"}
         titulo={titulos[modo][0]}
-        subtitulo={titulos[modo][1]}
+        subtitulo={typeof deOrden === "string" && modo === "nueva" ? "Con los datos de la orden de trabajo: revisá lo que cambió" : titulos[modo][1]}
       />
       <FormularioLabor
         // Cambiar de labor (o pasar de editar a nueva) tiene que reiniciar el formulario.
-        key={`${modo}-${idOrigen}-${lote ?? ""}`}
+        key={`${modo}-${idOrigen}-${lote ?? ""}-${deOrden ?? ""}`}
         campos={datos.campos}
         lotes={datos.lotes}
         productos={datos.productos}
@@ -85,6 +106,7 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
         }))}
         inicial={inicial}
         laborId={modo === "editar" ? idOrigen : undefined}
+        ordenId={modo === "nueva" && typeof deOrden === "string" ? Number(deOrden) : undefined}
       />
     </>
   );

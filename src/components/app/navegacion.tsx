@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Boxes,
   ChartColumn,
+  ClipboardList,
   Ellipsis,
   FileText,
   FlaskConical,
@@ -29,6 +30,7 @@ const RUTAS_DE_MAS = [
   "/mas",
   "/productores",
   "/recetas",
+  "/ordenes",
   "/stock",
   "/gastos",
   "/insumos",
@@ -43,6 +45,7 @@ const SECCIONES_PC = [
   { href: "/lotes", texto: "Campos y lotes", icono: Map },
   { href: "/historial", texto: "Historial", icono: List },
   { href: "/recetas", texto: "Recetas", icono: FileText },
+  { href: "/ordenes", texto: "Órdenes de trabajo", icono: ClipboardList },
   { href: "/stock", texto: "Stock", icono: Boxes },
   { href: "/gastos", texto: "Otros gastos", icono: Receipt },
   { href: "/insumos", texto: "Insumos y precios", icono: FlaskConical },
@@ -114,7 +117,7 @@ const SECCIONES_CELULAR = [
 export function BarraInferior() {
   const pathname = usePathname();
   // El formulario de carga tiene su propia barra de acciones abajo.
-  if (pathname === "/registrar" || pathname === "/recetas/nueva") return null;
+  if (pathname === "/registrar" || pathname === "/recetas/nueva" || pathname === "/ordenes/nueva") return null;
 
   return (
     <nav

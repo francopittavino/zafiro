@@ -9,6 +9,76 @@ import { MapaCampoPdf } from "./mapa";
 
 type Detalle = NonNullable<Awaited<ReturnType<typeof recetaDetallada>>>;
 
+/** La receta anidada dentro de otro PDF (labor u orden de trabajo): datos, productos y recomendaciones. */
+export function SeccionReceta({ receta }: { receta: Detalle }) {
+  const r = receta.receta;
+  return (
+    <Seccion titulo={`Receta N° ${r.numero}`}>
+      <Datos
+        datos={[
+          { nombre: "Fecha", valor: fechaCorta(r.fecha) },
+          { nombre: "Receta oficial N°", valor: r.numeroOficial },
+          { nombre: "Objetivo", valor: r.plagaObjetivo },
+          { nombre: "Tipo de aplicación", valor: r.tipoAplicacion },
+          { nombre: "Caudal", valor: r.caudalLHa != null ? `${num(r.caudalLHa)} L/ha` : null },
+          { nombre: "Aplicar a partir del", valor: r.fechaAplicacionPrevista && fechaCorta(r.fechaAplicacionPrevista) },
+        ]}
+      />
+      {receta.productos.length > 0 && (
+        <View style={{ marginTop: 6 }}>
+          <Tabla
+            columnas={[
+              { titulo: "Producto recetado", ancho: 3 },
+              { titulo: "Principio activo", ancho: 3 },
+              { titulo: "Banda", ancho: 1.2 },
+              { titulo: "Carencia", ancho: 1.1, derecha: true },
+              { titulo: "Dosis/ha", ancho: 1.4, derecha: true },
+            ]}
+            filas={receta.productos.map((p) => [
+              p.nombre,
+              [p.principioActivo, p.concentracion].filter(Boolean).join(" ") || "—",
+              p.bandaToxicologica ?? "—",
+              p.carenciaDias != null ? `${p.carenciaDias} d` : "—",
+              `${num(p.dosis, 3)} ${p.unidad}`,
+            ])}
+          />
+        </View>
+      )}
+      {[
+        ["Recomendaciones", r.recomendaciones],
+        ["Condiciones y distancias", r.condiciones],
+      ].map(
+        ([t, texto]) =>
+          texto && (
+            <Text key={t} style={[estilos.parrafo, { marginTop: 6 }]}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{t}: </Text>
+              {texto}
+            </Text>
+          ),
+      )}
+      {r.archivoOficial && (
+        <Text style={[estilos.subtitulo, { marginTop: 4 }]}>La receta oficial va al final de este PDF.</Text>
+      )}
+    </Seccion>
+  );
+}
+
+/** Firma del ingeniero al pie del documento. */
+export function Firma({ ingeniero, aclaracion }: { ingeniero: DatosIngeniero; aclaracion: string }) {
+  return (
+    <View
+      style={{ marginTop: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}
+      wrap={false}
+    >
+      <Text style={[estilos.subtitulo, { flex: 1 }]}>{aclaracion}</Text>
+      <View style={{ width: 200, borderTopWidth: 0.8, borderTopColor: COLOR.texto, paddingTop: 4, alignItems: "center" }}>
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{ingeniero.ingeniero_nombre || "Ingeniero agrónomo"}</Text>
+        {ingeniero.ingeniero_matricula && <Text style={estilos.subtitulo}>Matrícula {ingeniero.ingeniero_matricula}</Text>}
+      </View>
+    </View>
+  );
+}
+
 /** Resumen de la receta fitosanitaria (no reemplaza a la oficial de Entre Ríos). */
 export function RecetaPdf({
   detalle,
@@ -100,20 +170,10 @@ export function RecetaPdf({
             ),
         )}
 
-        <View
-          style={{ marginTop: 28, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}
-          wrap={false}
-        >
-          <Text style={[estilos.subtitulo, { flex: 1 }]}>
-            Resumen de la receta agronómica. No reemplaza a la receta fitosanitaria oficial.
-          </Text>
-          <View style={{ width: 200, borderTopWidth: 0.8, borderTopColor: COLOR.texto, paddingTop: 4, alignItems: "center" }}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{ingeniero.ingeniero_nombre || "Ingeniero agrónomo"}</Text>
-            {ingeniero.ingeniero_matricula && (
-              <Text style={estilos.subtitulo}>Matrícula {ingeniero.ingeniero_matricula}</Text>
-            )}
-          </View>
-        </View>
+        <Firma
+          ingeniero={ingeniero}
+          aclaracion="Resumen de la receta agronómica. No reemplaza a la receta fitosanitaria oficial."
+        />
       </Hoja>
     </Documento>
   );

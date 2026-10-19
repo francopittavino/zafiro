@@ -90,6 +90,7 @@ export function FormularioLabor({
   recetas,
   inicial,
   laborId,
+  ordenId,
 }: {
   campos: Campo[];
   lotes: Lote[];
@@ -99,13 +100,14 @@ export function FormularioLabor({
   contratistas: string[];
   personalizados: CampoPersonalizado[];
   stock: Existencia[];
-  /** Foto del mapa de cada campo (campoId → foto), para marcar manchones. */
   /** Mapas de los campos por id de foto (los manchones van sobre el mapa del lote). */
   mapas: Record<number, FotoMapa>;
   recetas: RecetaOpcion[];
   inicial?: ValoresIniciales;
   /** Si viene, el formulario edita esa labor en vez de crear una nueva. */
   laborId?: number;
+  /** Orden de trabajo de la que sale la labor (al guardar, la orden queda realizada). */
+  ordenId?: number;
 }) {
   const router = useRouter();
   const editando = laborId !== undefined;
@@ -308,6 +310,7 @@ export function FormularioLabor({
           recetaId: recetaId ? Number(recetaId) : null,
           extras: formulario.current ? leerExtras(new FormData(formulario.current)) : {},
           descontarStock,
+          ordenId: ordenId ?? null,
           insumos: lineas.map((l) => ({
             productoId: l.productoId,
             dosis: leerNumero(l.dosis),
@@ -316,6 +319,11 @@ export function FormularioLabor({
         },
         laborId,
       );
+      if (resultado.ok && !resultado.demo && ordenId) {
+        // Desde una orden de trabajo se vuelve a la orden, que ya figura como realizada.
+        router.push(`/ordenes/${ordenId}`);
+        return;
+      }
       if (resultado.ok && !resultado.demo && (editando || inicial?.insumos)) {
         // Al editar o duplicar se vuelve al historial, donde se ve el cambio.
         router.push("/historial");

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileDown } from "lucide-react";
+import { ClipboardList, FileDown } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { valoresExtra } from "@/components/app/campos-extra";
 import { recetaDetallada } from "@/lib/recetas";
@@ -65,6 +65,15 @@ export default async function VerReceta({ params }: PageProps<"/recetas/[id]">) 
             <FileDown className="size-5" aria-hidden />
             {r.archivoOficial ? "Descargar PDF (resumen + oficial)" : "Descargar PDF"}
           </a>
+          {r.estado !== "anulada" && (
+            <Link
+              href={`/ordenes/nueva?receta=${r.id}`}
+              className="bg-card hover:bg-muted flex h-12 items-center justify-center gap-2 rounded-xl border text-sm font-bold"
+            >
+              <ClipboardList className="text-zafiro size-5" aria-hidden />
+              Armar la orden de trabajo con esta receta
+            </Link>
+          )}
           <BotonEliminarReceta id={r.id} />
         </div>
 

@@ -2,7 +2,7 @@
 // Uso: npm run db:borrar-trabajos              → solo muestra qué se borraría
 //      npm run db:borrar-trabajos -- --confirmar → lo borra (en una transacción: todo o nada)
 //
-// Se borran: labores (con sus productos), recetas (y sus PDF oficiales), gastos, movimientos de
+// Se borran: órdenes de trabajo, labores (con sus productos), recetas (y sus PDF oficiales), gastos, movimientos de
 // stock y los cultivos (ciclos, con su cosecha), y las campañas que quedan vacías.
 // Quedan: productores, campos y lotes (con sus fotos, mapa y contornos), insumos con sus precios,
 // tipos de labor, contratistas, proveedores, categorías, campos personalizados, cotizaciones y ajustes.
@@ -20,6 +20,9 @@ const sql = postgres(url, { max: 1 });
 // Del más dependiente al menos: así ninguna clave foránea frena el borrado.
 const TABLAS = [
   ["movimientos_stock", "movimientos de stock"],
+  ["orden_items", "productos de órdenes de trabajo"],
+  ["orden_gastos", "gastos de órdenes de trabajo"],
+  ["ordenes_trabajo", "órdenes de trabajo"],
   ["labor_insumos", "productos aplicados en labores"],
   ["labores", "labores"],
   ["receta_items", "productos de recetas"],

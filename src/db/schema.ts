@@ -81,6 +81,9 @@ export const estadoRecetaEnum = pgEnum("estado_receta", [
   "anulada",
 ]);
 
+/** Orden de trabajo: se arma antes de hacer la labor; al registrarla pasa a "realizada". */
+export const estadoOrdenEnum = pgEnum("estado_orden", ["pendiente", "enviada", "realizada", "anulada"]);
+
 export const tenenciaEnum = pgEnum("tenencia", ["propio", "alquilado"]);
 
 /** El cultivo del lote está en curso hasta que se cierra a mano (después de la cosecha). */
@@ -464,6 +467,77 @@ export const laborInsumos = pgTable(
     moneda: monedaEnum().notNull().default("USD"),
   },
   (t) => [index().on(t.laborId)],
+);
+
+// ─── Órdenes de trabajo (lo que se va a hacer) ──────────────────────────────
+
+/**
+ * Lo que se va a hacer en un lote, para mandarle al productor en PDF antes de hacerlo:
+ * la labor, quién la hace, los productos (con la receta, si hay), y los costos estimados.
+ * Cuando se hace, se registra como labor desde la orden (`laborId`).
+ */
+export const ordenesTrabajo = pgTable(
+  "ordenes_trabajo",
+  {
+    id: id(),
+    /** Correlativo. */
+    numero: integer().notNull(),
+    fecha: date().notNull(),
+    cicloId: integer()
+      .notNull()
+      .references(() => ciclos.id),
+    recetaId: integer().references(() => recetas.id, { onDelete: "set null" }),
+    tipoLaborId: integer().references(() => tiposLabor.id),
+    fechaPrevista: date(),
+    superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
+    modalidad: modalidadLaborEnum(),
+    contratistaId: integer().references(() => contratistas.id),
+    cobro: cobroLaborEnum().notNull().default("ha"),
+    costoLaborPorHa: numeric({ precision: 14, scale: 4 }),
+    horas: numeric({ precision: 10, scale: 2 }),
+    costoHora: numeric({ precision: 14, scale: 4 }),
+    /** Indicaciones para quien hace el trabajo (ej. caudal, pastillas, horario). */
+    instrucciones: text(),
+    observaciones: text(),
+    /** Si el PDF muestra precios y costos (a veces se manda solo lo que hay que hacer). */
+    mostrarCostos: boolean().notNull().default(true),
+    estado: estadoOrdenEnum().notNull().default("pendiente"),
+    /** Labor que se registró a partir de esta orden. */
+    laborId: integer().references(() => labores.id, { onDelete: "set null" }),
+    creadoEn: creadoEn(),
+  },
+  (t) => [uniqueIndex().on(t.numero), index().on(t.cicloId)],
+);
+
+export const ordenItems = pgTable(
+  "orden_items",
+  {
+    id: id(),
+    ordenId: integer()
+      .notNull()
+      .references(() => ordenesTrabajo.id, { onDelete: "cascade" }),
+    productoId: integer()
+      .notNull()
+      .references(() => productos.id),
+    dosisPorHa: numeric({ precision: 12, scale: 4 }).notNull(),
+    /** Precio estimado (USD por unidad): sale de la lista y se puede cambiar. */
+    precioUnitario: numeric({ precision: 14, scale: 4 }).notNull(),
+  },
+  (t) => [index().on(t.ordenId)],
+);
+
+/** Otros gastos estimados de la orden (flete, alquiler de equipo…), en USD. */
+export const ordenGastos = pgTable(
+  "orden_gastos",
+  {
+    id: id(),
+    ordenId: integer()
+      .notNull()
+      .references(() => ordenesTrabajo.id, { onDelete: "cascade" }),
+    concepto: text().notNull(),
+    importe: numeric({ precision: 14, scale: 2 }).notNull(),
+  },
+  (t) => [index().on(t.ordenId)],
 );
 
 // ─── Fotos ──────────────────────────────────────────────────────────────────

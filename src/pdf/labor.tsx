@@ -8,6 +8,7 @@ import { valoresExtra } from "@/components/app/campos-extra";
 import { fechaCorta, num, usd, usd2 } from "@/lib/formato";
 import { COLOR, Datos, Documento, Hoja, Seccion, Tabla, estilos, type Logo } from "./comun";
 import { MapaCampoPdf } from "./mapa";
+import { SeccionReceta } from "./receta";
 import type { FotoPdf } from "./informe";
 
 type Receta = NonNullable<Awaited<ReturnType<typeof recetaDetallada>>>;
@@ -162,51 +163,7 @@ export function LaborPdf({
           </Seccion>
         </View>
 
-        {receta && (
-          <Seccion titulo={`Receta N° ${receta.receta.numero}`}>
-            <Datos
-              datos={[
-                { nombre: "Fecha", valor: fechaCorta(receta.receta.fecha) },
-                { nombre: "Receta oficial N°", valor: receta.receta.numeroOficial },
-                { nombre: "Objetivo", valor: receta.receta.plagaObjetivo },
-                { nombre: "Tipo de aplicación", valor: receta.receta.tipoAplicacion },
-                { nombre: "Caudal", valor: receta.receta.caudalLHa != null ? `${num(receta.receta.caudalLHa)} L/ha` : null },
-              ]}
-            />
-            {receta.productos.length > 0 && (
-              <View style={{ marginTop: 6 }}>
-                <Tabla
-                  columnas={[
-                    { titulo: "Producto recetado", ancho: 3 },
-                    { titulo: "Principio activo", ancho: 3 },
-                    { titulo: "Banda", ancho: 1.2 },
-                    { titulo: "Carencia", ancho: 1.1, derecha: true },
-                    { titulo: "Dosis/ha", ancho: 1.4, derecha: true },
-                  ]}
-                  filas={receta.productos.map((p) => [
-                    p.nombre,
-                    [p.principioActivo, p.concentracion].filter(Boolean).join(" ") || "—",
-                    p.bandaToxicologica ?? "—",
-                    p.carenciaDias != null ? `${p.carenciaDias} d` : "—",
-                    `${num(p.dosis, 3)} ${p.unidad}`,
-                  ])}
-                />
-              </View>
-            )}
-            {[
-              ["Recomendaciones", receta.receta.recomendaciones],
-              ["Condiciones y distancias", receta.receta.condiciones],
-            ].map(
-              ([t, texto]) =>
-                texto && (
-                  <Text key={t} style={[estilos.parrafo, { marginTop: 6 }]}>
-                    <Text style={{ fontFamily: "Helvetica-Bold" }}>{t}: </Text>
-                    {texto}
-                  </Text>
-                ),
-            )}
-          </Seccion>
-        )}
+        {receta && <SeccionReceta receta={receta} />}
 
         {ordenadas.length > 1 && (
           <Seccion titulo={`Labores del lote en la campaña ${campania}`}>

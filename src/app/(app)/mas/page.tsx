@@ -4,6 +4,7 @@ import {
   Boxes,
   ChartColumn,
   ChevronRight,
+  ClipboardList,
   FileText,
   FlaskConical,
   LogOut,
@@ -18,6 +19,7 @@ import { salir } from "../../acceso";
 const OPCIONES = [
   { href: "/productores", texto: "Productores", detalle: "A quiénes asesorás y sus campos", icono: Users },
   { href: "/recetas", texto: "Recetas", detalle: "Resumen de la receta oficial, en PDF", icono: FileText },
+  { href: "/ordenes", texto: "Órdenes de trabajo", detalle: "Lo que se va a hacer, en PDF para el productor", icono: ClipboardList },
   { href: "/informes", texto: "Informes", detalle: "Costos, margen bruto y PDF para el productor", icono: ChartColumn },
   { href: "/stock", texto: "Stock", detalle: "Insumos en cada campo", icono: Boxes },
   { href: "/gastos", texto: "Otros gastos", detalle: "Alquiler, flete, seguros…", icono: Receipt },

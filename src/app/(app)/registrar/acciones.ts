@@ -5,11 +5,11 @@ import { eq } from "drizzle-orm";
 import { db, dbTx } from "@/db";
 import {
   aportes,
-  contratistas,
   laborInsumos,
   labores,
   lotes,
   movimientosStock,
+  ordenesTrabajo,
   type Dibujo,
 } from "@/db/schema";
 import { verificarSesion } from "@/lib/sesion";
@@ -18,6 +18,7 @@ import { limpiarExtras } from "@/lib/extras";
 import { dibujoValido } from "@/lib/dibujo";
 import { SIN_CULTIVO, cicloParaRegistro, type Tx } from "@/lib/ciclos";
 import { modoDemo } from "@/lib/modo-demo";
+import { contratistaDeNombre } from "@/lib/contratistas";
 
 export type DatosLabor = {
   loteId: number;
@@ -41,6 +42,8 @@ export type DatosLabor = {
   insumos: { productoId: number; dosis: number; precio: number }[];
   /** Descontar los productos del stock del campo. */
   descontarStock: boolean;
+  /** Orden de trabajo de la que sale la labor: queda como realizada. */
+  ordenId?: number | null;
 };
 
 export type Resultado = { ok: true; id?: number; demo?: boolean } | { ok: false; error: string };
@@ -68,6 +71,7 @@ function validar(labor: DatosLabor): string | null {
   if (labor.zonas !== null && !(Array.isArray(labor.zonas) && labor.zonas.length <= 50 && labor.zonas.every(dibujoValido)))
     return "Las zonas marcadas no son válidas.";
   if (labor.recetaId !== null && !Number.isInteger(labor.recetaId)) return "La receta no es válida.";
+  if (labor.ordenId != null && !Number.isInteger(labor.ordenId)) return "La orden de trabajo no es válida.";
   if (!labor.insumos.every((i) => Number.isInteger(i.productoId) && positivo(i.dosis) && noNegativo(i.precio)))
     return "Revisá la dosis y el precio de los productos.";
   return null;
@@ -80,20 +84,6 @@ async function aporteDeNombre(tx: Tx, nombre: string | null) {
   const [existente] = await tx.select({ id: aportes.id }).from(aportes).where(eq(aportes.nombre, limpio));
   if (existente) return existente.id;
   const [nuevo] = await tx.insert(aportes).values({ nombre: limpio }).returning({ id: aportes.id });
-  return nuevo.id;
-}
-
-/** Igual que el aporte: el contratista se elige o se escribe uno nuevo. */
-async function contratistaDeNombre(tx: Tx, nombre: string | null) {
-  const limpio = nombre?.trim();
-  if (!limpio) return null;
-  const [existente] = await tx
-    .select({ id: contratistas.id })
-    .from(contratistas)
-    .where(eq(contratistas.nombre, limpio))
-    .limit(1);
-  if (existente) return existente.id;
-  const [nuevo] = await tx.insert(contratistas).values({ nombre: limpio }).returning({ id: contratistas.id });
   return nuevo.id;
 }
 
@@ -185,6 +175,11 @@ export async function guardarLabor(labor: DatosLabor, laborId?: number): Promise
         );
       }
     }
+    if (labor.ordenId != null)
+      await tx
+        .update(ordenesTrabajo)
+        .set({ estado: "realizada", laborId: id })
+        .where(eq(ordenesTrabajo.id, labor.ordenId));
     return id;
   });
 
@@ -199,6 +194,8 @@ export async function eliminarLabor(id: number): Promise<Resultado> {
   if (!Number.isInteger(id)) return { ok: false, error: "Labor inválida." };
   if (modoDemo()) return { ok: true, demo: true };
 
+  // Si salió de una orden de trabajo, la orden vuelve a quedar pendiente.
+  await db.update(ordenesTrabajo).set({ estado: "pendiente", laborId: null }).where(eq(ordenesTrabajo.laborId, id));
   await db.delete(labores).where(eq(labores.id, id));
   revalidatePath("/", "layout");
   return { ok: true };

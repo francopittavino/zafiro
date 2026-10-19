@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileDown, FileText, Plus } from "lucide-react";
+import { ClipboardList, FileDown, FileText, Plus } from "lucide-react";
 import { Encabezado } from "@/components/app/encabezado";
 import { ChipCultivo } from "@/components/app/chip-cultivo";
 import { BotonEditarLote } from "@/components/app/altas";
@@ -169,7 +169,7 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
           )}
 
           {enCurso && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Link
                 href={`/registrar?lote=${lote.id}`}
                 className="bg-primary text-primary-foreground flex h-12 items-center justify-center gap-2 rounded-xl font-bold"
@@ -183,6 +183,13 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
               >
                 <FileText className="size-5" aria-hidden />
                 Receta
+              </Link>
+              <Link
+                href={`/ordenes/nueva?lote=${lote.id}`}
+                className="bg-card hover:bg-muted flex h-12 items-center justify-center gap-2 rounded-xl border font-bold"
+              >
+                <ClipboardList className="size-5" aria-hidden />
+                Orden
               </Link>
             </div>
           )}
