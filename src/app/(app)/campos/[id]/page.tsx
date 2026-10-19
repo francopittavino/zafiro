@@ -24,7 +24,7 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
   const filas = (await costosPorLote()).filter((f) => f.campoId === campo.id);
   const ha = filas.reduce((t, f) => t + f.lote.ha, 0);
   const total = filas.reduce((t, f) => t + f.costos.total, 0);
-  const [galeria, mapas] = await Promise.all([fotosDe({ tipo: "campo", id: campo.id }), mapasDeCampos([campo])]);
+  const [galeria, mapas] = await Promise.all([fotosDe({ tipo: "campo", id: campo.id }), mapasDeCampos([campo.id])]);
   const personalizados = datos.camposPersonalizados ?? [];
   const gastosDelCampo = (datos.gastos ?? []).filter((g) => g.campoId === campo.id);
   const conStock = (datos.stock ?? []).filter((s) => s.campoId === campo.id && s.cantidad !== 0).length;
@@ -53,9 +53,9 @@ export default async function FichaCampo({ params }: PageProps<"/campos/[id]">) 
         <div className="flex flex-col gap-4 md:order-2">
           <MapaCampo
             campoId={campo.id}
-            foto={mapas.get(campo.id) ?? null}
+            mapas={mapas}
             fotos={galeria.fotos}
-            lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo }))}
+            lotes={filas.map(({ lote: l }) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo, mapaId: l.mapaId }))}
             disponible={galeria.disponible}
             motivo={galeria.motivo}
           />

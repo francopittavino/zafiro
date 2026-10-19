@@ -162,7 +162,10 @@ export const campos = pgTable("campos", {
   provincia: text(),
   latitud: numeric({ precision: 9, scale: 6 }),
   longitud: numeric({ precision: 9, scale: 6 }),
-  /** Foto aérea o captura del campo sobre la que se marcan los lotes (ver `Dibujo`). */
+  /**
+   * En desuso desde la migración 0008: un campo tiene varios mapas (`fotos.esMapa`) y cada lote
+   * dice sobre cuál está marcado (`lotes.mapaId`). Se borra cuando ya no haya código viejo andando.
+   */
   fotoMapaId: integer().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
   extras: jsonb().$type<Extras>(),
   notas: text(),
@@ -182,8 +185,10 @@ export const lotes = pgTable(
     superficieHa: numeric({ precision: 10, scale: 2 }).notNull(),
     /** Contorno importado de Google Earth (KML/KMZ). */
     contorno: multiPoligono(),
-    /** Contorno marcado sobre la foto del campo (`campos.fotoMapaId`). */
+    /** Contorno marcado sobre uno de los mapas del campo (`mapaId`). */
     dibujo: jsonb().$type<Dibujo>(),
+    /** Foto del campo (un mapa) sobre la que está marcado el lote; sin ella el dibujo no vale. */
+    mapaId: integer().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
     tenencia: tenenciaEnum(),
     tipoSuelo: text(),
     latitud: numeric({ precision: 9, scale: 6 }),
@@ -481,6 +486,8 @@ export const fotos = pgTable(
     nota: text(),
     ancho: integer(),
     alto: integer(),
+    /** Foto del campo que se usa de mapa (un campo puede tener varios; ver `lotes.mapaId`). */
+    esMapa: boolean().notNull().default(false),
     creadoEn: creadoEn(),
   },
   (t) => [

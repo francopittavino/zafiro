@@ -10,6 +10,7 @@ import { modoDemo } from "@/lib/modo-demo";
 import { borrarArchivo, fotosConfiguradas, mensajeAlmacenamiento, subirArchivo } from "@/lib/almacenamiento";
 
 type Resultado = { ok: true } | { ok: false; error: string };
+type ResultadoSubida = { ok: true; id: number } | { ok: false; error: string };
 
 const TIPOS_PERMITIDOS = ["image/jpeg", "image/png", "image/webp"];
 /** El navegador achica la foto antes de mandarla; esto es solo un tope. */
@@ -20,8 +21,8 @@ const entero = (v: FormDataEntryValue | null) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
-/** Sube una foto (ya achicada en el navegador) a un campo o lote; con `mapa=1` queda como mapa del campo. */
-export async function subirFoto(formulario: FormData): Promise<Resultado> {
+/** Sube una foto (ya achicada en el navegador) a un campo o lote; con `mapa=1` queda como un mapa del campo. */
+export async function subirFoto(formulario: FormData): Promise<ResultadoSubida> {
   await verificarSesion();
   if (modoDemo()) return { ok: false, error: "En el modo demo no se pueden cargar fotos." };
   if (!fotosConfiguradas()) return { ok: false, error: "Falta configurar el almacenamiento de fotos." };
@@ -51,6 +52,7 @@ export async function subirFoto(formulario: FormData): Promise<Resultado> {
   } catch (error) {
     return { ok: false, error: mensajeAlmacenamiento(error) };
   }
+  let id: number;
   try {
     const [nueva] = await db
       .insert(fotos)
@@ -62,11 +64,11 @@ export async function subirFoto(formulario: FormData): Promise<Resultado> {
         alto: entero(formulario.get("alto")),
         campoId: tipo === "campo" ? destinoId : null,
         loteId: tipo === "lote" ? destinoId : null,
+        // "Subir foto del mapa": la foto nueva se suma a los mapas del campo.
+        esMapa: tipo === "campo" && formulario.get("mapa") === "1",
       })
       .returning({ id: fotos.id });
-    // "Subir foto del mapa": la foto nueva pasa a ser la del mapa del campo.
-    if (tipo === "campo" && formulario.get("mapa") === "1")
-      await db.update(campos).set({ fotoMapaId: nueva.id }).where(eq(campos.id, destinoId));
+    id = nueva.id;
   } catch (error) {
     // Si no se pudo registrar, no dejar el archivo huérfano en el bucket.
     await borrarArchivo(ruta).catch(() => {});
@@ -74,7 +76,7 @@ export async function subirFoto(formulario: FormData): Promise<Resultado> {
   }
 
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, id };
 }
 
 /** Borra la foto (registro y archivo). */
@@ -83,6 +85,8 @@ export async function eliminarFoto(id: number): Promise<Resultado> {
   if (!Number.isInteger(id)) return { ok: false, error: "Foto inválida." };
   if (modoDemo()) return { ok: false, error: "En el modo demo no se pueden borrar fotos." };
 
+  // Si era un mapa, los lotes marcados sobre ella quedan sin marcar.
+  await db.update(lotes).set({ dibujo: null, mapaId: null }).where(eq(lotes.mapaId, id));
   const [foto] = await db.delete(fotos).where(eq(fotos.id, id)).returning({ ruta: fotos.ruta });
   if (foto) await borrarArchivo(foto.ruta);
   revalidatePath("/", "layout");

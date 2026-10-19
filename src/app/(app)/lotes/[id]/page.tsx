@@ -7,7 +7,7 @@ import { BotonEditarLote } from "@/components/app/altas";
 import { GaleriaFotos } from "@/components/app/galeria-fotos";
 import { valoresExtra } from "@/components/app/campos-extra";
 import { fotosDe, mapasDeCampos } from "@/lib/fotos";
-import { Leyenda, VistaMapa } from "@/components/app/mapa";
+import { Leyenda, VistaMapa, lotesEn } from "@/components/app/mapa";
 import { ciclosDelLote, listarCampanias, obtenerDatos } from "@/lib/datos";
 import { costosDelCiclo, laboresDetalladas, margenDelLote, otrosGastosDelLote } from "@/lib/consultas";
 import { campaniaSugerida, fechaCorta, num, usd } from "@/lib/formato";
@@ -31,13 +31,14 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
   const cosecha = datos.cosechas.find((c) => c.loteId === lote.id);
   const [galeria, mapas, ciclos, campanias] = await Promise.all([
     fotosDe({ tipo: "lote", id: lote.id }),
-    mapasDeCampos(campo ? [campo] : []),
+    mapasDeCampos(campo ? [campo.id] : []),
     ciclosDelLote(lote.id),
     listarCampanias(),
   ]);
   const enCurso = ciclos.find((c) => c.estado === "en_curso");
   const anteriores = ciclos.filter((c) => c.estado === "cerrado");
-  const mapa = campo && mapas.get(campo.id);
+  // El mapa donde está marcado el lote, con los demás lotes de esa misma foto.
+  const mapa = mapas.find((m) => m.id === lote.mapaId);
   const lotesDelCampo = datos.lotes.filter((l) => l.campoId === lote.campoId);
   const manchones = labores.flatMap((l) => l.zonas ?? []);
   const personalizados = datos.camposPersonalizados ?? [];
@@ -189,8 +190,8 @@ export default async function FichaLote({ params }: PageProps<"/lotes/[id]">) {
           {mapa && lote.dibujo && (
             <section className="flex flex-col gap-2">
               <h2 className="font-bold">En el campo</h2>
-              <VistaMapa foto={mapa} lotes={lotesDelCampo} resaltado={lote.id} zonas={manchones} />
-              <Leyenda lotes={lotesDelCampo} />
+              <VistaMapa foto={mapa} lotes={lotesEn(lotesDelCampo, mapa.id)} resaltado={lote.id} zonas={manchones} />
+              <Leyenda lotes={lotesEn(lotesDelCampo, mapa.id)} />
               {manchones.length > 0 && (
                 <p className="text-muted-foreground text-xs">En rojo punteado: manchones aplicados en las labores del lote.</p>
               )}

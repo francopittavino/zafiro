@@ -6,7 +6,7 @@ import { labores } from "@/db/schema";
 import { datosDe, obtenerDatos } from "@/lib/datos";
 import { laboresDetalladas } from "@/lib/consultas";
 import { datosIngeniero, recetaDetallada } from "@/lib/recetas";
-import { fotosDe, mapaConLotes } from "@/lib/fotos";
+import { fotosDe, mapaDelLote } from "@/lib/fotos";
 import { fechaCorta } from "@/lib/formato";
 import { cargarLogo, respuestaPdf } from "@/pdf/comun";
 import { LaborPdf } from "@/pdf/labor";
@@ -38,7 +38,7 @@ export async function GET(request: Request, { params }: RouteContext<"/historial
     cargarLogo(request.url),
     datosIngeniero(),
     labor.recetaId ? recetaDetallada(labor.recetaId) : null,
-    campo ? mapaConLotes(campo, datos.lotes) : null,
+    mapaDelLote(lote, campo, datos.lotes),
     fotosDe({ tipo: "lote", id: lote.id }),
   ]);
   const ultima = galeria.fotos[0];

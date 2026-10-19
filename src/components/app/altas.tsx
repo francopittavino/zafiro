@@ -5,7 +5,7 @@ import { Camera, MapPin } from "lucide-react";
 import type { Dibujo } from "@/db/schema";
 import type { FotoMapa } from "@/lib/fotos";
 import { Dialogo } from "./dialogo";
-import { EditorDibujo, completas, subirFotoMapa, type LoteMapa } from "./mapa";
+import { EditorDibujo, SelectorMapa, completas, lotesEn, subirFotoMapa, type LoteMapa } from "./mapa";
 import { mapaParaMarcar } from "@/app/(app)/acciones-mapa";
 import { CamposExtra, leerExtras } from "./campos-extra";
 import type { Campo, Catalogo, CampoPersonalizado, Lote, Producto, Productor } from "@/lib/datos";
@@ -334,9 +334,9 @@ export function FormCampo({
             campoId,
           );
           if (r.ok && r.id && fotoMapa) {
-            const falla = await subirFotoMapa(r.id, fotoMapa);
+            const subida = await subirFotoMapa(r.id, fotoMapa);
             // El campo ya quedó guardado: la foto se puede volver a subir desde su ficha.
-            if (falla) window.alert(`El campo se guardó, pero la foto del mapa no: ${falla}`);
+            if ("error" in subida) window.alert(`El campo se guardó, pero la foto del mapa no: ${subida.error}`);
           }
           return r;
         });
@@ -425,11 +425,14 @@ export function FormLote({
   const [campoId, setCampoId] = useState(inicial?.campoId ? String(inicial.campoId) : "");
   const nuevoCampo = campoId === "__nuevo__";
   const extras = personalizados.filter((c) => c.entidad === "lote");
-  // Mapa del campo elegido (se pide al cambiar de campo; `campoId` dice de cuál es).
-  const [mapa, setMapa] = useState<{ campoId: string; datos: { foto: FotoMapa; lotes: LoteMapa[] } | null } | null>(null);
-  const [dibujo, setDibujo] = useState<Dibujo[]>(inicial?.dibujo ? [inicial.dibujo] : []);
+  // Mapas del campo elegido (se piden al cambiar de campo; `campoId` dice de cuál son).
+  const [mapa, setMapa] = useState<{ campoId: string; datos: { mapas: FotoMapa[]; lotes: LoteMapa[] } } | null>(null);
+  const [dibujo, setDibujo] = useState<Dibujo[]>(inicial?.dibujo && inicial.mapaId ? [inicial.dibujo] : []);
   const [dibujoTocado, setDibujoTocado] = useState(false);
-  const mapaDelCampo = mapa?.campoId === campoId ? mapa.datos : null;
+  const delCampo = mapa?.campoId === campoId ? mapa.datos : null;
+  // Mapa donde se marca el lote: el que ya tenía, el que se eligió o el primero del campo.
+  const [mapaElegido, setMapaElegido] = useState<number | null>(inicial?.mapaId ?? null);
+  const mapaActual = delCampo?.mapas.find((m) => m.id === mapaElegido) ?? delCampo?.mapas[0];
   const [vueltaMapa, setVueltaMapa] = useState(0);
   const [subiendo, iniciarSubida] = useTransition();
   const [errorFoto, setErrorFoto] = useState("");
@@ -441,7 +444,7 @@ export function FormLote({
     let vigente = true;
     mapaParaMarcar(id).then(
       (datos) => vigente && setMapa({ campoId, datos }),
-      () => vigente && setMapa({ campoId, datos: null }),
+      () => vigente && setMapa({ campoId, datos: { mapas: [], lotes: [] } }),
     );
     return () => {
       vigente = false;
@@ -454,10 +457,19 @@ export function FormLote({
     if (!archivo || !campoElegido) return;
     setErrorFoto("");
     iniciarSubida(async () => {
-      const falla = await subirFotoMapa(campoElegido.id, archivo);
-      if (falla) setErrorFoto(falla);
-      else setVueltaMapa((v) => v + 1);
+      const subida = await subirFotoMapa(campoElegido.id, archivo);
+      if ("error" in subida) return setErrorFoto(subida.error);
+      elegirMapa(subida.id);
+      setVueltaMapa((v) => v + 1);
     });
+  }
+
+  /** Cambia el mapa donde se marca: el contorno de otra foto no sirve, salvo volver al original. */
+  function elegirMapa(id: number) {
+    setMapaElegido(id);
+    const original = inicial?.dibujo && inicial.mapaId === id && String(inicial.campoId) === campoId;
+    setDibujo(original ? [inicial.dibujo!] : []);
+    setDibujoTocado(!original);
   }
 
   /** Contorno a guardar: undefined deja el que estaba; null lo borra. */
@@ -500,6 +512,7 @@ export function FormLote({
               notas: String(f.get("notas") ?? ""),
               extras: leerExtras(f),
               dibujo: contornoAGuardar(),
+              mapaId: mapaActual?.id ?? null,
             },
             loteId,
           ),
@@ -573,21 +586,28 @@ export function FormLote({
         <p className="bg-muted/60 text-muted-foreground rounded-lg p-3 text-xs">
           Mapa: guardá el lote y después subí la foto del campo desde su ficha para marcar los lotes.
         </p>
-      ) : mapaDelCampo ? (
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-bold">Marcá el lote en el mapa del campo</p>
+      ) : delCampo && mapaActual ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-bold">Marcá el lote en el mapa</p>
+          <SelectorMapa mapas={delCampo.mapas} elegido={mapaActual.id} lotes={delCampo.lotes} alElegir={elegirMapa} />
           <EditorDibujo
-            foto={mapaDelCampo.foto}
-            fondo={mapaDelCampo.lotes.filter((l) => l.id !== loteId)}
+            foto={mapaActual}
+            fondo={lotesEn(delCampo.lotes, mapaActual.id).filter((l) => l.id !== loteId)}
             figuras={dibujo}
             alCambiar={(f) => {
               setDibujo(f.slice(-1));
               setDibujoTocado(true);
             }}
           />
+          <label className="text-zafiro flex w-fit cursor-pointer items-center gap-1.5 text-xs font-bold has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+            <Camera className="size-3.5" aria-hidden />
+            {subiendo ? "Subiendo…" : "¿El lote no está en esta foto? Subí otra para marcarlo"}
+            <input type="file" accept="image/*" onChange={subirMapa} className="sr-only" disabled={subiendo} />
+          </label>
+          {errorFoto && <p className="text-destructive text-xs">{errorFoto}</p>}
         </div>
       ) : (
-        mapa?.campoId === campoId && (
+        delCampo && (
           <div className="bg-muted/60 flex flex-col gap-2 rounded-lg p-3 text-sm">
             <p>
               <span className="font-bold">{campoElegido?.nombre} todavía no tiene foto del mapa.</span>{" "}

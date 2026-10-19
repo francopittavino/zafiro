@@ -75,7 +75,6 @@ export type Campo = {
   provincia?: string | null;
   latitud?: number | null;
   longitud?: number | null;
-  fotoMapaId?: number | null;
   extras?: Extras | null;
   notas?: string | null;
 };
@@ -95,6 +94,8 @@ export type Lote = {
   latitud?: number | null;
   longitud?: number | null;
   dibujo?: Dibujo | null;
+  /** Mapa del campo (foto) sobre el que está marcado `dibujo`. */
+  mapaId?: number | null;
   extras?: Extras | null;
   notas?: string | null;
 };
@@ -414,7 +415,6 @@ async function datosDeLaBase(alcance: Alcance): Promise<Datos> {
       provincia: c.provincia,
       latitud: n(c.latitud),
       longitud: n(c.longitud),
-      fotoMapaId: c.fotoMapaId,
       extras: c.extras,
       notas: c.notas,
     })),
@@ -436,6 +436,7 @@ async function datosDeLaBase(alcance: Alcance): Promise<Datos> {
         latitud: n(l.latitud),
         longitud: n(l.longitud),
         dibujo: l.dibujo,
+        mapaId: l.mapaId,
         extras: l.extras,
         notas: l.notas,
       };

@@ -2,7 +2,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { verificarSesion } from "@/lib/sesion";
 import { armarInforme, leerFiltro } from "@/lib/informe";
 import { datosIngeniero } from "@/lib/recetas";
-import { fotosDe, mapaConLotes } from "@/lib/fotos";
+import { fotosDe, mapasConLotes } from "@/lib/fotos";
 import { cargarLogo, respuestaPdf } from "@/pdf/comun";
 import { InformePdf, type FotoPdf, type MapaPdf } from "@/pdf/informe";
 
@@ -30,17 +30,15 @@ export async function GET(request: Request) {
     })),
   ].slice(0, MAXIMO_FOTOS);
   for (const d of destinos) {
-    // La foto que se usa de mapa ya sale en la sección Mapa: no se repite.
-    const mapaId = d.tipo === "campo" ? informe.datos.campos.find((c) => c.id === d.id)?.fotoMapaId : null;
-    const lista = (await fotosDe({ tipo: d.tipo, id: d.id })).fotos.filter((f) => f.id !== mapaId);
+    // Las fotos que se usan de mapa ya salen en la sección Mapa: no se repiten.
+    const lista = (await fotosDe({ tipo: d.tipo, id: d.id })).fotos.filter((f) => !f.esMapa);
     if (lista[0]) fotos.push({ titulo: d.titulo, url: lista[0].url, ancho: lista[0].ancho, alto: lista[0].alto });
   }
 
   // Mapas de los campos del informe con todos sus lotes marcados (el del informe, resaltado).
   const mapas: MapaPdf[] = [];
   for (const campo of informe.datos.campos.filter((c) => campos.includes(c.id))) {
-    const mapa = await mapaConLotes(campo, informe.datos.lotes);
-    if (mapa) mapas.push(mapa);
+    mapas.push(...(await mapasConLotes(campo, informe.datos.lotes)));
   }
 
   const [logo, ingeniero] = await Promise.all([cargarLogo(request.url), datosIngeniero()]);

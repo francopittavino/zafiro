@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { fotos, type Dibujo } from "@/db/schema";
 import type { Campo, Lote } from "./datos";
@@ -15,49 +15,68 @@ export type Foto = {
   nota: string | null;
   ancho: number | null;
   alto: number | null;
+  esMapa: boolean;
 };
 
-/** Foto sobre la que se marcan los lotes de un campo. */
-export type FotoMapa = { id: number; url: string; ancho: number; alto: number };
+/**
+ * Foto sobre la que se marcan lotes. Un campo puede tener varios mapas (lotes lejos entre sí,
+ * o una foto por lote); cada lote dice sobre cuál está marcado (`Lote.mapaId`).
+ */
+export type FotoMapa = { id: number; campoId: number; url: string; ancho: number; alto: number };
 
-/** Fotos de mapa de los campos que tienen una elegida (campoId → foto). */
-export async function mapasDeCampos(campos: { id: number; fotoMapaId?: number | null }[]) {
-  const mapas = new Map<number, FotoMapa>();
-  const conMapa = campos.filter((c) => c.fotoMapaId);
-  if (modoDemo() || !fotosConfiguradas() || !conMapa.length) return mapas;
+/** Mapas de esos campos, en el orden en que se cargaron. */
+export async function mapasDeCampos(campoIds: number[]): Promise<FotoMapa[]> {
+  if (modoDemo() || !fotosConfiguradas() || !campoIds.length) return [];
 
   const filas = await db
     .select()
     .from(fotos)
-    .where(inArray(fotos.id, conMapa.map((c) => c.fotoMapaId!)));
+    .where(and(inArray(fotos.campoId, campoIds), eq(fotos.esMapa, true)))
+    .orderBy(asc(fotos.id));
   // Si el almacenamiento falla (variables mal cargadas), las pantallas siguen sin el mapa.
   const urls = await urlsFirmadas(filas.map((f) => f.ruta)).catch((error) => {
     console.error("[fotos]", mensajeAlmacenamiento(error));
     return new Map<string, string>();
   });
-  for (const c of conMapa) {
-    const f = filas.find((x) => x.id === c.fotoMapaId);
-    const url = f && urls.get(f.ruta);
+  return filas
+    .filter((f) => urls.has(f.ruta))
     // Sin medidas no se puede respetar la proporción: se asume 4:3.
-    if (f && url) mapas.set(c.id, { id: f.id, url, ancho: f.ancho ?? 1600, alto: f.alto ?? 1200 });
-  }
-  return mapas;
+    .map((f) => ({ id: f.id, campoId: f.campoId!, url: urls.get(f.ruta)!, ancho: f.ancho ?? 1600, alto: f.alto ?? 1200 }));
 }
 
-/** Mapa de un campo listo para dibujar (PDF): la foto y los lotes marcados sobre ella. */
+/** Si la foto es uno de los mapas del campo (para validar dónde se marca un lote). */
+export async function esMapaDelCampo(mapaId: number, campoId: number) {
+  const [mapa] = await db
+    .select({ id: fotos.id })
+    .from(fotos)
+    .where(and(eq(fotos.id, mapaId), eq(fotos.campoId, campoId), eq(fotos.esMapa, true)));
+  return Boolean(mapa);
+}
+
+/** Mapa listo para dibujar (PDF): la foto y los lotes marcados sobre ella. */
 export type MapaConLotes = {
   campo: string;
   foto: FotoMapa;
   lotes: { id: number; codigo: string; nombre: string; cultivo: string; dibujo: Dibujo }[];
 };
 
-/** Mapa del campo con sus lotes marcados, o null si no tiene foto o ningún lote marcado. */
-export async function mapaConLotes(campo: Campo, lotes: Lote[]): Promise<MapaConLotes | null> {
-  const foto = (await mapasDeCampos([campo])).get(campo.id);
-  const marcados = lotes
-    .filter((l) => l.campoId === campo.id && l.dibujo)
+const marcadosEn = (foto: FotoMapa, lotes: Lote[]) =>
+  lotes
+    .filter((l) => l.mapaId === foto.id && l.dibujo)
     .map((l) => ({ id: l.id, codigo: l.codigo, nombre: l.nombre, cultivo: l.cultivo, dibujo: l.dibujo! }));
-  return foto && marcados.length ? { campo: campo.nombre, foto, lotes: marcados } : null;
+
+/** Los mapas del campo que tienen algún lote marcado, cada uno con sus lotes. */
+export async function mapasConLotes(campo: Campo, lotes: Lote[]): Promise<MapaConLotes[]> {
+  return (await mapasDeCampos([campo.id]))
+    .map((foto) => ({ campo: campo.nombre, foto, lotes: marcadosEn(foto, lotes) }))
+    .filter((m) => m.lotes.length > 0);
+}
+
+/** El mapa donde está marcado el lote (con los demás lotes de esa foto), o null si no está marcado. */
+export async function mapaDelLote(lote: Lote, campo: Campo | undefined, lotes: Lote[]): Promise<MapaConLotes | null> {
+  if (!campo || !lote.mapaId || !lote.dibujo) return null;
+  const foto = (await mapasDeCampos([campo.id])).find((f) => f.id === lote.mapaId);
+  return foto ? { campo: campo.nombre, foto, lotes: marcadosEn(foto, lotes) } : null;
 }
 
 /** Estado de la galería: si se pueden usar las fotos y las que hay, de la más nueva a la más vieja. */
@@ -86,6 +105,6 @@ export async function fotosDe(destino: Destino): Promise<{ disponible: boolean; 
     disponible: true,
     fotos: filas
       .filter((f) => urls.has(f.ruta))
-      .map((f) => ({ id: f.id, url: urls.get(f.ruta)!, fecha: f.fecha, nota: f.nota, ancho: f.ancho, alto: f.alto })),
+      .map((f) => ({ id: f.id, url: urls.get(f.ruta)!, fecha: f.fecha, nota: f.nota, ancho: f.ancho, alto: f.alto, esMapa: f.esMapa })),
   };
 }

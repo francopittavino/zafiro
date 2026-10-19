@@ -19,7 +19,7 @@ import { guardarLabor } from "./acciones";
 import { Dialogo } from "@/components/app/dialogo";
 import { FormLote, FormProducto, FormTipoLabor, MasDatos } from "@/components/app/altas";
 import { CamposExtra, leerExtras } from "@/components/app/campos-extra";
-import { EditorDibujo, completas } from "@/components/app/mapa";
+import { EditorDibujo, completas, lotesEn } from "@/components/app/mapa";
 import type { FotoMapa } from "@/lib/fotos";
 
 const NUEVO = "__nuevo__";
@@ -100,6 +100,7 @@ export function FormularioLabor({
   personalizados: CampoPersonalizado[];
   stock: Existencia[];
   /** Foto del mapa de cada campo (campoId → foto), para marcar manchones. */
+  /** Mapas de los campos por id de foto (los manchones van sobre el mapa del lote). */
   mapas: Record<number, FotoMapa>;
   recetas: RecetaOpcion[];
   inicial?: ValoresIniciales;
@@ -471,7 +472,7 @@ export function FormularioLabor({
             </fieldset>
           </div>
 
-          {lote && mapas[lote.campoId] && (
+          {lote?.mapaId && mapas[lote.mapaId] && (
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -484,8 +485,8 @@ export function FormularioLabor({
               </label>
               {enManchones && (
                 <EditorDibujo
-                  foto={mapas[lote.campoId]}
-                  fondo={lotes.filter((l) => l.campoId === lote.campoId)}
+                  foto={mapas[lote.mapaId]}
+                  fondo={lotesEn(lotes, lote.mapaId)}
                   figuras={zonas}
                   multiple
                   alCambiar={setZonas}

@@ -20,6 +20,7 @@ import {
   type Dibujo,
 } from "@/db/schema";
 import { dibujoValido } from "@/lib/dibujo";
+import { esMapaDelCampo } from "@/lib/fotos";
 import { campaniaDeNombre, campaniaValida, cicloEnCurso } from "@/lib/ciclos";
 import { campaniaSugerida } from "@/lib/formato";
 import { verificarSesion } from "@/lib/sesion";
@@ -169,8 +170,9 @@ export type DatosLote = {
   longitud?: number | null;
   notas?: string;
   extras?: Record<string, string>;
-  /** Contorno sobre la foto del campo: undefined no lo toca, null lo borra. */
+  /** Contorno sobre uno de los mapas del campo (`mapaId`): undefined no lo toca, null lo borra. */
   dibujo?: Dibujo | null;
+  mapaId?: number | null;
 };
 
 function validarLote(datos: DatosLote) {
@@ -183,6 +185,9 @@ function validarLote(datos: DatosLote) {
   if (!latitudValida(datos.latitud) || !longitudValida(datos.longitud)) return MENSAJE_COORDENADAS;
   if (datos.campania && !campaniaValida(datos.campania)) return "La campaña tiene que ser como 2025/26.";
   if (datos.dibujo != null && !dibujoValido(datos.dibujo)) return "Marcá al menos 3 puntos del lote en el mapa.";
+  // El lote se marca sobre un mapa de su campo (un campo nuevo todavía no tiene).
+  if (datos.dibujo != null && (!datos.campoId || !Number.isInteger(datos.mapaId)))
+    return "Elegí el mapa donde marcaste el lote.";
   return null;
 }
 
@@ -193,6 +198,8 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
   if (error) return { ok: false, error };
   if (!idValido(loteId)) return { ok: false, error: "Lote inválido." };
   if (modoDemo()) return { ok: true, demo: true };
+  if (datos.dibujo != null && !(await esMapaDelCampo(datos.mapaId!, datos.campoId!)))
+    return { ok: false, error: "El mapa no es de este campo." };
 
   const codigo = texto(datos.codigo) || null;
   const cultivo = texto(datos.cultivo);
@@ -226,7 +233,7 @@ export async function guardarLote(datos: DatosLote, loteId?: number): Promise<Re
           longitud: numeroOpcional(datos.longitud),
           notas: opcional(datos.notas),
           extras,
-          ...(datos.dibujo !== undefined && { dibujo: datos.dibujo }),
+          ...(datos.dibujo !== undefined && { dibujo: datos.dibujo, mapaId: datos.dibujo ? datos.mapaId : null }),
         };
         let id = loteId;
         if (id === undefined) {

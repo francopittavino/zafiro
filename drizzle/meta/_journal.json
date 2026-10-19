@@ -57,6 +57,13 @@
       "when": 1792345035477,
       "tag": "0007_campanias_por_cultivo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792411489077,
+      "tag": "0008_varios_mapas",
+      "breakpoints": true
     }
   ]
 }

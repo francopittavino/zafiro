@@ -14,7 +14,7 @@ import { FormularioLabor, type ValoresIniciales } from "./formulario-labor";
 export default async function Registrar({ searchParams }: PageProps<"/registrar">) {
   const { lote, labor: editar, duplicar } = await searchParams;
   const datos = await obtenerDatos();
-  const [mapas, recetas] = await Promise.all([mapasDeCampos(datos.campos), listarRecetas()]);
+  const [mapas, recetas] = await Promise.all([mapasDeCampos(datos.campos.map((c) => c.id)), listarRecetas()]);
 
   const idOrigen = Number(typeof editar === "string" ? editar : typeof duplicar === "string" ? duplicar : NaN);
   const modo = typeof editar === "string" ? "editar" : typeof duplicar === "string" ? "duplicar" : "nueva";
@@ -72,7 +72,7 @@ export default async function Registrar({ searchParams }: PageProps<"/registrar"
         contratistas={(datos.contratistas ?? []).map((c) => c.nombre)}
         personalizados={datos.camposPersonalizados ?? []}
         stock={datos.stock ?? []}
-        mapas={Object.fromEntries(mapas)}
+        mapas={Object.fromEntries(mapas.map((m) => [m.id, m]))}
         recetas={recetas
           .filter((r) => r.estado !== "anulada")
           .map((r) => ({ id: r.id, numero: r.numero, loteId: r.loteId, fecha: r.fecha, objetivo: r.plagaObjetivo, items: r.items }))}

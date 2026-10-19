@@ -72,7 +72,7 @@ export function InformePdf({
         {mapas.length > 0 && (
           <Seccion titulo={mapas.length > 1 ? "Mapas" : "Mapa"}>
             {mapas.map((m) => (
-              <MapaCampoPdf key={m.campo} mapa={m} resaltado={informe.lote?.id ?? informe.ciclo?.loteId} />
+              <MapaCampoPdf key={m.foto.id} mapa={m} resaltado={informe.lote?.id ?? informe.ciclo?.loteId} />
             ))}
           </Seccion>
         )}
