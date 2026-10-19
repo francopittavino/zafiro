@@ -23,3 +23,10 @@ export function centro(dibujo: Dibujo): [number, number] {
   const [sx, sy] = dibujo.reduce(([ax, ay], [x, y]) => [ax + x, ay + y], [0, 0]);
   return [sx / dibujo.length, sy / dibujo.length];
 }
+
+/**
+ * Lotes marcados sobre ese mapa (foto del campo). Va acá y no en el componente del mapa
+ * porque ese es "use client": sus funciones no se pueden llamar desde una página del servidor.
+ */
+export const lotesEn = <T extends { dibujo?: Dibujo | null; mapaId?: number | null }>(lotes: T[], mapaId: number | undefined) =>
+  lotes.filter((l) => l.dibujo && l.mapaId === mapaId);

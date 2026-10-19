@@ -19,7 +19,8 @@ import { guardarLabor } from "./acciones";
 import { Dialogo } from "@/components/app/dialogo";
 import { FormLote, FormProducto, FormTipoLabor, MasDatos } from "@/components/app/altas";
 import { CamposExtra, leerExtras } from "@/components/app/campos-extra";
-import { EditorDibujo, completas, lotesEn } from "@/components/app/mapa";
+import { EditorDibujo, completas } from "@/components/app/mapa";
+import { lotesEn } from "@/lib/dibujo";
 import type { FotoMapa } from "@/lib/fotos";
 
 const NUEVO = "__nuevo__";

@@ -6,7 +6,7 @@ import { useRef, useState, useTransition } from "react";
 import { Camera, Pencil, Undo2 } from "lucide-react";
 import type { Dibujo } from "@/db/schema";
 import type { Foto, FotoMapa } from "@/lib/fotos";
-import { centro, puntosSvg } from "@/lib/dibujo";
+import { centro, lotesEn, puntosSvg } from "@/lib/dibujo";
 import { colorCultivo } from "@/lib/colores-cultivo";
 import { hoyIso } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -30,10 +30,6 @@ export type LoteMapa = {
   /** Mapa (foto) sobre el que está marcado `dibujo`. */
   mapaId?: number | null;
 };
-
-/** Lotes marcados sobre ese mapa. */
-export const lotesEn = <T extends LoteMapa>(lotes: T[], mapaId: number | undefined) =>
-  lotes.filter((l) => l.dibujo && l.mapaId === mapaId);
 
 /** Nombre corto del mapa para elegirlo: "Mapa 2 · B1, B4". */
 export function nombreMapa(mapas: FotoMapa[], mapaId: number, lotes: LoteMapa[]) {
