@@ -6,7 +6,7 @@
 ## 1. Contexto del proyecto
 
 - **Qué es:** sistema de gestión agronómica a medida para un cliente (ingeniero agrónomo / productor, Argentina).
-- **Estado:** implementado lo que pidió el cliente (2026-10-17) y los pedidos del dev del 2026-10-18 (campañas por cultivo con cierre, receta oficial en PDF, mapa en las altas, PDF de labor, inicio simple). Migraciones hasta la **0007 aplicadas**; producción andando. **Trabajos de prueba borrados** (2026-10-18): la base tiene campos, lotes, insumos y catálogos, sin cultivos ni campañas; el ingeniero carga todo de cero.
+- **Estado:** implementado lo que pidió el cliente (2026-10-17) y los pedidos del dev del 2026-10-18 (campañas por cultivo con cierre, receta oficial en PDF, mapa en las altas, PDF de labor, inicio simple). Migraciones hasta la **0009 aplicadas**; producción andando y **el cliente ya usa la app** (desde 2026-10-19 pide cambios: coordenadas en grados, minutos y segundos, varios mapas por campo, órdenes de trabajo). **Trabajos de prueba borrados** (2026-10-18): la base tiene campos, lotes, insumos y catálogos, sin cultivos ni campañas; el ingeniero carga todo de cero.
 - **Lo que dijo el cliente en el audio:**
   - Ya tiene una "base de datos" (formato desconocido).
   - Trabaja varios campos en distintas localidades; los lotes los dibuja/descarga desde Google Earth (ubicación, lotes).
@@ -159,6 +159,7 @@ Principios ya acordados como recomendación:
 | 2026-10-19 | **Coordenadas en grados, minutos y segundos** (`59°15'19.07"O`, `32°28'57.14"S`) en los formularios y las fichas de campo y lote. En la base siguen en grados decimales (sin migración). Se acepta también `59 15 19,07` (sin letra = sur/oeste), decimales y pegar el par desde Google Maps; al salir del campo se ordena al formato. `src/lib/coordenadas.ts` | Pedido del cliente (ya usa la app) |
 | 2026-10-19 | **Varios mapas por campo**: cualquier foto del campo puede ser mapa (`fotos.es_mapa`) y cada lote se marca sobre uno (`lotes.mapa_id`; el dibujo es relativo a esa foto). Sirve para lotes lejos entre sí o una foto por lote. En la ficha del campo: "+ Mapa", elegir mapa, marcar lotes y quitar un mapa (sus lotes quedan sin marcar). En el alta/edición del lote se elige el mapa o se sube otra foto ahí mismo. Manchones y PDF usan el mapa del lote; el informe saca un mapa por foto. Migración **0008 aplicada** (pasó el mapa de Barreto Raíces y BRAUER, con B1 y B4). `campos.foto_mapa_id` queda en desuso: borrarla en una migración futura | Pedido del cliente: los lotes de un campo no entran en una sola foto |
 | 2026-10-19 | **Órdenes de trabajo** (`/ordenes`, tablas `ordenes_trabajo`, `orden_items`, `orden_gastos`; migración **0009 aplicada**): lo que se va a hacer en un lote, para mandarle al productor en PDF antes de hacerlo. Número correlativo, labor, superficie, fecha prevista, quién la hace y cómo se cobra, instrucciones, productos con dosis y precio estimado, otros gastos (flete…), receta vinculada (se copia su mezcla) y casilla "mostrar costos en el PDF". El PDF trae campo, lote, mapa, trabajo, productos, costo estimado y la **receta anidada** (+ la oficial al final). Estados: pendiente, enviada, realizada, anulada. **"Ya se hizo: registrar la labor"** abre Registrar con los datos de la orden y al guardar la orden queda realizada (si se borra la labor, vuelve a pendiente). Una orden = un lote (como las recetas). Los otros gastos de la orden son estimados: no se cargan solos como gastos | Pedido del cliente |
+| 2026-10-27 | **Informe de un solo lote** (filtro de lote o cierre de un cultivo): el PDF trae solo el mapa donde está marcado ese lote (resaltado) y la última foto del lote, sin la foto del campo. Los informes de campo o de productor siguen con todos los mapas de sus campos | Error que reportó el cliente: el informe de un lote traía los mapas de todos los lotes del campo |
 
 ## 5. Preguntas abiertas
 
@@ -281,3 +282,22 @@ Principios ya acordados como recomendación:
 3. Recorrer en el celular lo nuevo (ver Preguntas abiertas → Técnicas).
 4. Mostrarle al cliente los PDF de muestra y preguntarle lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
 5. Cambiar el PIN por uno más largo (en local es `0000`).
+
+### 2026-10-19
+- Entrada reconstruida el 2026-10-27 a partir de los commits y de la tabla de decisiones (esa sesión no escribió bitácora).
+- Coordenadas en grados, minutos y segundos (`746f55f`).
+- Varios mapas por campo, migración 0008 aplicada (`4830ad1`).
+- Órdenes de trabajo con PDF para el productor y la receta anidada, migración 0009 aplicada (`67f21d1`).
+- Arreglo: la ficha del lote se caía cuando el lote estaba marcado en un mapa (`6979e87`).
+
+### 2026-10-27
+- Abrir sesión: se trajeron los 4 commits del 2026-10-19.
+- **Arreglo del informe de un lote**: el PDF traía los mapas de todos los lotes del campo; ahora trae solo el mapa y la foto del lote (`f41b396`). El dev lo probó en producción y anda bien.
+- Los tipos de rutas generados estaban viejos (faltaba `/ordenes`) y `tsc` fallaba: se regeneran con `npx next typegen`.
+
+**Próximos pasos:**
+1. Acompañar al ingeniero con los 7 primeros pasos de la guía de inicio.
+2. Revisar en el celular lo nuevo: varios mapas, órdenes de trabajo, coordenadas, cerrar/reabrir cultivo.
+3. Cambiar el PIN por uno más largo.
+4. Preguntarle al cliente lo que quedó sin responder (prioridades, plazos, presupuesto, precio de lista o factura).
+5. Migración para borrar `campos.foto_mapa_id` (en desuso).
