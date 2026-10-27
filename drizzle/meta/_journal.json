@@ -71,6 +71,13 @@
       "when": 1792414683441,
       "tag": "0009_ordenes_trabajo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793108018002,
+      "tag": "0010_borrar_foto_mapa",
+      "breakpoints": true
     }
   ]
 }

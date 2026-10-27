@@ -165,11 +165,6 @@ export const campos = pgTable("campos", {
   provincia: text(),
   latitud: numeric({ precision: 9, scale: 6 }),
   longitud: numeric({ precision: 9, scale: 6 }),
-  /**
-   * En desuso desde la migración 0008: un campo tiene varios mapas (`fotos.esMapa`) y cada lote
-   * dice sobre cuál está marcado (`lotes.mapaId`). Se borra cuando ya no haya código viejo andando.
-   */
-  fotoMapaId: integer().references((): AnyPgColumn => fotos.id, { onDelete: "set null" }),
   extras: jsonb().$type<Extras>(),
   notas: text(),
   creadoEn: creadoEn(),
